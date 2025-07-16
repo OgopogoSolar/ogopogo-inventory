@@ -199,6 +199,29 @@ class InventoryDAO:
         """
         cur = DatabaseManager.access_connection().cursor()
         return [Item(*row) for row in cur.execute(sql)]
+    
+    @classmethod
+    def fetch_by_supervisor(cls, supervisor_id: int) -> list[User]:
+        """
+        Fetch all users who report to a specific supervisor.
+        """
+        sql = """
+            SELECT
+                UserID,
+                CompanyID,
+                SupervisorID,
+                LastName,
+                FirstName,
+                UserType,
+                CreatedAt
+            FROM Users
+            WHERE SupervisorID = ?
+            ORDER BY UserID
+        """
+        cur = DatabaseManager.access_connection().cursor()
+        cur.execute(sql, (supervisor_id,))
+        return [User(*row) for row in cur.fetchall()]
+
 
     @classmethod
     def fetch_by_id(cls, item_id: str) -> Item | None:

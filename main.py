@@ -6,11 +6,10 @@ from modules.auth.login_controller import LoginController
 from modules.main_window import MainWindow
 
 from PyQt6.QtGui import QIcon
-app = QApplication(sys.argv)
-app.setWindowIcon(QIcon("icon.ico"))
 
 def main():
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon("icon.ico"))
 
     check_for_update()
 

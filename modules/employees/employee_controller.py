@@ -13,8 +13,15 @@ class EmployeeController:
         self._all_emps = []
 
     def load_employees(self):
-        """Load all employees and render to the table."""
-        self._all_emps = EmployeeDAO.fetch_all()
+        """Load and display employees based on user role."""
+        if self.current_user.user_type == "ADMIN":
+            self._all_emps = EmployeeDAO.fetch_all()
+        elif self.current_user.user_type == "SUPERVISOR":
+            self._all_emps = EmployeeDAO.fetch_by_supervisor(self.current_user.user_id)
+            self._all_emps.insert(0, self.current_user)  # include self
+        else:
+            self._all_emps = []  # Employees shouldn't access this anyway
+
         self._render_table(self._all_emps)
 
     def on_search_text_changed(self, text: str):

@@ -317,11 +317,11 @@
 #         # reload full list
 #         self.controller.load_items()
 
-#     def _current_item_id(self) -> str | None:
-#         r = self.table.currentRow()
-#         if r < 0:
-#             return None
-#         return self.table.item(r, 0).text()
+    # def _current_item_id(self) -> str | None:
+    #     r = self.table.currentRow()
+    #     if r < 0:
+    #         return None
+    #     return self.table.item(r, 0).text()
 
 #     def refresh(self, items: list[Item]):
 #         """由 Controller 调用以刷新表格显示"""
@@ -548,10 +548,13 @@ class ItemDialog(QDialog):
             QDialogButtonBox.StandardButton.Apply |
             QDialogButtonBox.StandardButton.Cancel
         )
-        btns.button(QDialogButtonBox.StandardButton.Apply).setText("Apply")
-        btns.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
-        btns.accepted.connect(self.accept)
-        btns.rejected.connect(self.reject)
+        apply_btn = btns.button(QDialogButtonBox.StandardButton.Apply)
+        cancel_btn = btns.button(QDialogButtonBox.StandardButton.Cancel)
+        apply_btn.setText("Apply")
+        cancel_btn.setText("Cancel")
+        apply_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+
 
         main_layout.addLayout(form)
         main_layout.addWidget(btns)
@@ -734,6 +737,12 @@ class InventoryView(QWidget):
         self.labelTypeCombo.setCurrentIndex(0)
         self.printBtn.setEnabled(False)
         self.controller.load_items()
+    
+    def _current_item_id(self) -> str | None:
+        r = self.table.currentRow()
+        if r < 0:
+            return None
+        return self.table.item(r, 0).text()
 
     def refresh(self, items: list[Item]):
         self.table.setRowCount(len(items))
