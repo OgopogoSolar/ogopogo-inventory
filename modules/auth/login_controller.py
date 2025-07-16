@@ -58,8 +58,8 @@ class LoginController:
             conn = DatabaseManager.mysql_connection()
             with conn.cursor(pymysql.cursors.DictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM Companies WHERE (rootAdminUsername=%s OR rootAdminEmail=%s) AND rootAdminPassword=%s",
-                    (user_input, user_input, pwd_hash)
+                    "SELECT * FROM Companies WHERE rootAdminEmail=%s AND rootAdminPassword=%s",
+                    (user_input, pwd_hash)
                 )
                 row = cur.fetchone()
         except Exception as e:
