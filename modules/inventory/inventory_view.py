@@ -573,9 +573,10 @@ class ItemDialog(QDialog):
             if idx != -1:
                 self._subcat_combo.setCurrentIndex(idx)
             self._reload_parameters()
-            for i, le in self._param_widgets.items():
-                if i+2 < len(parts):
-                    le.setText(parts[i+2])
+            param_values = parts[2:]  # Skip category and subcategory
+            for position, le in self._param_widgets.items():
+                if 1 <= position <= len(param_values):
+                    le.setText(param_values[position - 1])
             self._desc.setText(item.description)
             self._qty.setValue(item.quantity)
             self._status.setCurrentText(item.status)
@@ -746,14 +747,40 @@ class InventoryView(QWidget):
             return None
         return self.table.item(r, 0).text()
 
+    # def refresh(self, items: list[Item]):
+    #     self.table.setRowCount(len(items))
+    #     for r, itm in enumerate(items):
+    #         parts = itm.item_id.split('-')[2:]
+    #         holder = ""
+    #         if itm.holder_id:
+    #             u = EmployeeDAO.fetch_by_id(itm.holder_id)
+    #             holder = f"{u.first_name} {u.last_name}" if u else ""
+    #         from data.access_dao import ItemSafetyRequirementDAO, SafetyDAO
+    #         reqs = ItemSafetyRequirementDAO.fetch_by_item(itm.item_id)
+    #         type_map = {t.permission_id: t.name for t in SafetyDAO.fetch_all_types()}
+    #         req_text = "\n".join(type_map.get(pid, str(pid)) for pid in reqs)
+
+    #         vals = [
+    #             itm.item_id, itm.category_code, itm.subcategory_code,
+    #             itm.location, itm.quantity, itm.status,
+    #             holder, " ".join(parts).strip(), req_text
+    #         ]
+    #         for c, v in enumerate(vals):
+    #             self.table.setItem(r, c, QTableWidgetItem(str(v)))
+    #     if items:
+    #         self.table.selectRow(0)
+
     def refresh(self, items: list[Item]):
         self.table.setRowCount(len(items))
         for r, itm in enumerate(items):
             parts = itm.item_id.split('-')[2:]
+            param_text = "\n".join(parts).strip()
+
             holder = ""
             if itm.holder_id:
                 u = EmployeeDAO.fetch_by_id(itm.holder_id)
                 holder = f"{u.first_name} {u.last_name}" if u else ""
+
             from data.access_dao import ItemSafetyRequirementDAO, SafetyDAO
             reqs = ItemSafetyRequirementDAO.fetch_by_item(itm.item_id)
             type_map = {t.permission_id: t.name for t in SafetyDAO.fetch_all_types()}
@@ -762,10 +789,16 @@ class InventoryView(QWidget):
             vals = [
                 itm.item_id, itm.category_code, itm.subcategory_code,
                 itm.location, itm.quantity, itm.status,
-                holder, " ".join(parts).strip(), req_text
+                holder, param_text, req_text
             ]
+
             for c, v in enumerate(vals):
-                self.table.setItem(r, c, QTableWidgetItem(str(v)))
+                item = QTableWidgetItem(str(v))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignTop)
+                item.setToolTip(str(v))  # Optional: tooltip on hover
+                self.table.setItem(r, c, item)
+
+        self.table.resizeRowsToContents()  # 👈 Make rows adjust height for multiline
         if items:
             self.table.selectRow(0)
 
