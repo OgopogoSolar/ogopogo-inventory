@@ -436,6 +436,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+
 
 from data.access_dao import (
     InventoryDAO, Item, EmployeeDAO,
@@ -808,7 +810,7 @@ class CheckDialog(QDialog):
         ):
             fld = QLabel()
             fld.setWordWrap(True)
-            fld.setFont(QFont("Segoe UI", 12))
+            fld.setFont(QFont("Segoe UI", 11))
             form.addRow(f"{label}:", fld)
             self.info_fields[label.lower()] = fld
 
@@ -818,17 +820,17 @@ class CheckDialog(QDialog):
         form.addRow("SOP:", self.sop_btn)
 
         self.image_label = QLabel()
-        self.image_label.setFixedSize(256, 256)
+        self.image_label.setFixedSize(100, 100)
         self.image_label.setScaledContents(True)
         form.addRow("Image:", self.image_label)
 
         self.req_label = QLabel()
         self.req_label.setWordWrap(True)
-        self.req_label.setFont(QFont("Segoe UI", 12))
+        self.req_label.setFont(QFont("Segoe UI", 11))
         form.addRow("Safety Requirements:", self.req_label)
 
         self.status_label = QLabel()
-        self.status_label.setFont(QFont("Segoe UI", 12))
+        self.status_label.setFont(QFont("Segoe UI", 11))
         form.addRow("", self.status_label)
 
         main_layout.addLayout(form)

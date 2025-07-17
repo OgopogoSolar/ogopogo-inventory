@@ -346,10 +346,18 @@ class InventoryDAO:
         ))
 
     @classmethod
-    def delete(cls, item_id: str) -> None:
-        sql = "DELETE FROM Items WHERE ItemID = ?"
-        cur = DatabaseManager.access_connection().cursor()
-        cur.execute(sql, (item_id,))
+    def delete(cls, item_id: str):
+        db = DatabaseManager.access_connection()
+        cur = db.cursor()
+
+        # Step 1: delete related safety requirements
+        cur.execute("DELETE FROM ItemSafetyRequirements WHERE ItemID = ?", (item_id,))
+
+        # Step 2: delete the item itself from Items table
+        cur.execute("DELETE FROM Items WHERE ItemID = ?", (item_id,))
+
+
+
 
 # ——— 模型定义 —————————————————————————————————————————————————————————
 @dataclass
