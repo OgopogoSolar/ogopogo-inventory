@@ -80,16 +80,19 @@ class EmployeeDAO:
                 UserType,
                 CreatedAt
             FROM Users
-            ORDER BY UserID
+           ORDER BY UserID
         """
         cur = DatabaseManager.access_connection().cursor()
-        return [User(*row) for row in cur.execute(sql)]
+        return [
+            User(
+                r.UserID, r.CompanyID, r.SupervisorID,
+                r.LastName, r.FirstName, r.UserType, r.CreatedAt
+            )
+            for r in cur.execute(sql)
+        ]
 
     @classmethod
     def fetch_by_id(cls, uid: int) -> User | None:
-        """
-        Fetch a single employee record by UserID.
-        """
         sql = """
             SELECT
                 UserID,
@@ -104,8 +107,36 @@ class EmployeeDAO:
         """
         cur = DatabaseManager.access_connection().cursor()
         cur.execute(sql, (uid,))
-        row = cur.fetchone()
-        return User(*row) if row else None
+        r = cur.fetchone()
+        return (
+            User(
+                r.UserID, r.CompanyID, r.SupervisorID,
+                r.LastName, r.FirstName, r.UserType, r.CreatedAt
+            )
+            if r else None
+        )
+
+    @classmethod
+    def fetch_by_supervisor(cls, supervisor_id: int) -> list[User]:
+        """
+        Return all Users whose SupervisorID = supervisor_id.
+        """
+        sql = """
+            SELECT
+                UserID,
+                CompanyID,
+                SupervisorID,
+                LastName,
+                FirstName,
+                UserType,
+                CreatedAt
+            FROM Users
+            WHERE SupervisorID = ?
+            ORDER BY UserID
+        """
+        cur = DatabaseManager.access_connection().cursor()
+        cur.execute(sql, (supervisor_id,))
+        return [User(*r) for r in cur.fetchall()]
 
     @classmethod
     def insert(cls,
@@ -437,43 +468,6 @@ class SubCategoryDAO:
         cur = DatabaseManager.access_connection().cursor()
         cur.execute(sql, (code,))
 
-
-# ——— ParameterDAO ————————————————————————————————————————————————————
-# class ParameterDAO:
-#     @classmethod
-#     def fetch_by_subcategory(cls, sub_code: str) -> list[Parameter]:
-#         sql = """
-#             SELECT
-#                 [SubCategoryCode],
-#                 [ParamPos]       AS Position,
-#                 [ParameterName] AS Name
-#             FROM [Parameters]
-#             WHERE [SubCategoryCode]=?
-#             ORDER BY [ParamPos]
-#         """
-#         cur = DatabaseManager.access_connection().cursor()
-#         return [
-#             Parameter(r.SubCategoryCode, r.Position, r.Name)
-#             for r in cur.execute(sql, (sub_code,))
-#         ]
-    
-#     @classmethod
-#     def insert(cls, sub_code: str, pos: int, name: str) -> None:
-#         sql = "INSERT INTO [Parameters] ([SubCategoryCode],[ParamPos],[ParameterName]) VALUES (?,?,?)"
-#         cur = DatabaseManager.access_connection().cursor()
-#         cur.execute(sql, (sub_code, pos, name))
-
-#     @classmethod
-#     def update(cls, sub_code: str, pos: int, name: str) -> None:
-#         sql = "UPDATE [Parameters] SET [ParameterName]=? WHERE [SubCategoryCode]=? AND [ParamPos]=?"
-#         cur = DatabaseManager.access_connection().cursor()
-#         cur.execute(sql, (name, sub_code, pos))
-
-#     @classmethod
-#     def delete(cls, sub_code: str, pos: int) -> None:
-#         sql = "DELETE FROM [Parameters] WHERE [SubCategoryCode]=? AND [ParamPos]=?"
-#         cur = DatabaseManager.access_connection().cursor()
-#         cur.execute(sql, (sub_code, pos))
 
 class ParameterDAO:
     @classmethod

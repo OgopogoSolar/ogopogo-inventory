@@ -4,7 +4,7 @@ from pathlib import Path
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QMessageBox, QTableWidgetItem
 from utils.label_printer import print_label
-from data.access_dao import EmployeeDAO, UserDAO
+from data.access_dao import EmployeeDAO
 
 class EmployeeController:
     def __init__(self, view, current_user):
@@ -13,16 +13,21 @@ class EmployeeController:
         self._all_emps = []
 
     def load_employees(self):
-        """Load and display employees based on user role."""
-        if self.current_user.user_type == "ADMIN":
-            self._all_emps = EmployeeDAO.fetch_all()
-        elif self.current_user.user_type == "SUPERVISOR":
-            self._all_emps = EmployeeDAO.fetch_by_supervisor(self.current_user.user_id)
-            self._all_emps.insert(0, self.current_user)  # include self
-        else:
-            self._all_emps = []  # Employees shouldn't access this anyway
+        # Build the report‐tree under the current user (Admin or Supervisor).
+        report_tree: dict[int, list[User]] = {}
+        to_visit = [self.current_user.user_id]
 
-        self._render_table(self._all_emps)
+        while to_visit:
+            sup_id = to_visit.pop()
+            if sup_id in report_tree:
+                continue
+            direct = EmployeeDAO.fetch_by_supervisor(sup_id)
+            report_tree[sup_id] = direct
+            for e in direct:
+                to_visit.append(e.user_id)
+
+        # Always render everyone under the logged-in user
+        self.view.populate_tree(report_tree, self.current_user.user_id)
 
     def on_search_text_changed(self, text: str):
         """Filter employee list as the user types."""
@@ -54,7 +59,7 @@ class EmployeeController:
             # Supervisor name (col 5)
             sup_id = getattr(e, "supervisor_id", None)
             if sup_id:
-                sup = UserDAO.get_by_id(sup_id)
+                sup = EmployeeDAO.fetch_by_id(sup_id)
                 sup_name = f"{sup.first_name} {sup.last_name}"
             else:
                 sup_name = ""
