@@ -297,9 +297,11 @@ class InventoryController:
         for i in range(len(headers)):
             key = headers[i]
             val = self.view.table.item(row, i).text() or ""
-            if key == "Parameters":
-                val = val.replace("\n", ", ")
-            placeholder_dict[key] = val
+        if key == "Parameters":
+            # Split by newlines or commas, strip spaces, and join with single space
+            parts = [p.strip() for p in re.split(r"[,\n]+", val) if p.strip()]
+            val = " ".join(parts)
+
 
         # 读取模板名称
         cat     = self.view.labelTypeCombo.currentText().lower()
