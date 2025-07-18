@@ -35,10 +35,15 @@ class SafetyController:
         self.view.show_employees(users)
 
     def on_add_type(self):
+        if self.current_user.user_type.upper() == "SUPERVISOR":
+            QMessageBox.warning(self.view, "Permission Denied", "Supervisors cannot create permit types.")
+            return
+
         name, ok = QInputDialog.getText(self.view, "Add Permit Type", "Type name:")
         if ok and name.strip():
             SafetyDAO.add_type(name.strip())
             self.load_types()
+
 
     def on_edit_type(self):
         row = self.view.type_table.currentRow()
@@ -92,34 +97,14 @@ class SafetyController:
         if not hasattr(self, "scanned_employee"):
             QMessageBox.warning(self.view, "Assign Failed", "Please scan an employee first.")
             return
+
         uid = self.scanned_employee.user_id
         pid = self.view.assign_type_combo.currentData()
         if uid is None or pid is None:
             QMessageBox.warning(self.view, "Assign Failed", "Select employee and permit type.")
             return
 
-        if actor != "ADMIN":
-            held_permits = SafetyDAO.fetch_by_user(self.current_user.user_id)
-            matching = next((p for p in held_permits if p.permit_id == pid), None)
-
-            if not matching:
-                QMessageBox.warning(
-                    self.view,
-                    "Permission Denied",
-                    "You must hold this permit yourself before assigning it."
-                )
-                return
-            
-            if matching.expire_date:  # not permanent
-                if expire is None or expire > matching.expire_date:
-                    QMessageBox.warning(
-                        self.view,
-                        "Assign Failed",
-                        "You cannot assign this permit beyond your own expiration date."
-                    )
-                    return
-
-
+        # Cannot assign to self
         if uid == self.current_user.user_id:
             QMessageBox.warning(self.view, "Assign Failed", "You cannot assign a permit to yourself.")
             return
@@ -128,9 +113,9 @@ class SafetyController:
         if not target:
             QMessageBox.warning(self.view, "Assign Failed", "Employee not found.")
             return
-
         tlevel = target.user_type.upper()
 
+        # Role-based restrictions
         if actor == "EMPLOYEE":
             QMessageBox.warning(self.view, "Permission Denied", "Employees cannot assign permits.")
             return
@@ -151,18 +136,43 @@ class SafetyController:
             QMessageBox.warning(self.view, "Assign Failed", "Cannot assign permits to other admins.")
             return
 
+        # Issue and expire logic
+        issue = datetime.datetime.now()
         val   = self.view.duration_spin.value()
         unit  = self.view.unit_combo.currentText()
-        # issue = datetime.date.today()
-        issue = datetime.datetime.now()
-        if unit == "Hours":
+
+        if unit == "Permanent":
+            expire = None
+        elif unit == "Hours":
             expire = issue + relativedelta(hours=val)
         elif unit == "Days":
             expire = issue + relativedelta(days=val)
         else:
             expire = issue + relativedelta(months=val)
 
-        if (expire - issue).days > 366:
+        # Supervisor must hold the license and cannot assign beyond their expiry
+        if actor != "ADMIN":
+            held_permits = SafetyDAO.fetch_by_user(self.current_user.user_id)
+            matching = next((p for p in held_permits if p.permit_id == pid), None)
+
+            if not matching:
+                QMessageBox.warning(
+                    self.view,
+                    "Permission Denied",
+                    "You must hold this permit yourself before assigning it."
+                )
+                return
+
+            if matching.expire_date is not None:
+                if expire is None or expire > matching.expire_date:
+                    QMessageBox.warning(
+                        self.view,
+                        "Assign Failed",
+                        "You cannot assign this permit beyond your own expiration date."
+                    )
+                    return
+
+        if expire is not None and (expire - issue).days > 366:
             QMessageBox.warning(
                 self.view,
                 "Assign Failed",
@@ -207,6 +217,11 @@ class SafetyController:
             QMessageBox.warning(self.view, "Error", "Please scan an item first.")
             return
         pid = self.view.req_type_combo.currentData()
+
+        if not self._can_modify_requirement(pid):
+            QMessageBox.warning(self.view, "Permission Denied", "You must hold a valid permit of this type to modify requirements.")
+            return
+
         from data.access_dao import ItemSafetyRequirementDAO
         ItemSafetyRequirementDAO.add_requirement(self.scanned_item.item_id, pid)
         self.load_item_requirements(self.scanned_item.item_id)
@@ -219,6 +234,11 @@ class SafetyController:
         if row < 0:
             return
         pid = self.view.req_list.item(row, 0).data(Qt.ItemDataRole.UserRole)
+
+        if not self._can_modify_requirement(pid):
+            QMessageBox.warning(self.view, "Permission Denied", "You must hold a valid permit of this type to modify requirements.")
+            return
+
         from data.access_dao import ItemSafetyRequirementDAO
         ItemSafetyRequirementDAO.delete_requirement(self.scanned_item.item_id, pid)
         self.load_item_requirements(self.scanned_item.item_id)
