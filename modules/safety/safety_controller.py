@@ -142,8 +142,10 @@ class SafetyController:
         val   = self.view.duration_spin.value()
         unit  = self.view.unit_combo.currentText()
         issue = datetime.date.today()
+
         if unit == "Hours":
-            expire = issue + relativedelta(hours=val)
+            expire = datetime.datetime.combine(issue, datetime.time()) + relativedelta(hours=val)
+            expire = expire.date()
         elif unit == "Days":
             expire = issue + relativedelta(days=val)
         else:
