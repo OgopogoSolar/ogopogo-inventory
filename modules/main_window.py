@@ -135,9 +135,9 @@ class MainWindow(QMainWindow):
             left.addWidget(lbl)
 
         left.addWidget(QLabel("Safety Permits:"))
-        self.permitTable = QTableWidget(0, 3)
+        self.permitTable = QTableWidget(0, 4)
         self.permitTable.setHorizontalHeaderLabels(
-            ["Permit Type", "Expire Date", "Issued By"]
+            ["Permit Type", "Issued On", "Expires On", "Issued By"]
         )
         self.permitTable.horizontalHeader().setStretchLastSection(True)
         left.addWidget(self.permitTable)
@@ -262,17 +262,30 @@ class MainWindow(QMainWindow):
         self.lbl_welcome.setText(f"Welcome, {u.first_name} {u.last_name}")
         self.lbl_id.setText(f"User ID: {u.user_id}")
         self.lbl_type.setText(f"User Type: {u.user_type}")
-        self.lbl_license_type.setText(f"License Type: {getattr(u, 'licence_type', '')}")
-        self.lbl_expire_date.setText(f"License Expiration: {getattr(u, 'licence_expire_date', '')}")
+        lt = getattr(u, 'licence_type', '') or "—"
+        ed = getattr(u, 'licence_expire_date', '') or "—"
+        self.lbl_license_type.setText(f"License Type: {lt}")
+        self.lbl_expire_date.setText(f"License Expiration: {ed}")
         self.lbl_company_address.setText(f"Company Address: {getattr(u, 'company_address', '')}")
 
         permits = SafetyDAO.fetch_by_user(u.user_id)
         self.permitTable.setRowCount(len(permits))
         for r, p in enumerate(permits):
+            # Permit Type
             self.permitTable.setItem(r, 0, QTableWidgetItem(p.permit_name))
-            self.permitTable.setItem(r, 1, QTableWidgetItem(p.expire_date.strftime("%Y-%m-%d")))
+            # Start Time
+            start_text = p.issue_date.strftime("%Y-%m-%d %H:%M")
+            self.permitTable.setItem(r, 1, QTableWidgetItem(start_text))
+            # Expire Time
+            if p.expire_date is None:
+                expire_text = "Permanent"
+            else:
+                expire_text = p.expire_date.strftime("%Y-%m-%d %H:%M")
+            self.permitTable.setItem(r, 2, QTableWidgetItem(expire_text))
+            # Issued By
             issuer = f"{p.issuer_first} {p.issuer_last}"
-            self.permitTable.setItem(r, 2, QTableWidgetItem(issuer))
+            self.permitTable.setItem(r, 3, QTableWidgetItem(issuer))
+
 
     def _on_code_changed(self, idx: int):
         """Generate and display a PDF417 barcode based on selection."""
@@ -316,10 +329,15 @@ class MainWindow(QMainWindow):
                                 "FROM Companies WHERE CompanyID=%s",
                                 (emp.company_id,)
                             )
-                            comp = cur.fetchone()
-                        emp.company_address       = comp["CompanyAddress"]
-                        emp.licence_type          = comp["LicenceType"]
-                        emp.licence_expire_date   = comp["LicenceExpireDate"]
+                        comp = cur.fetchone()
+                        if comp:
+                            emp.company_address     = comp.get("CompanyAddress", "—")
+                            emp.licence_type        = comp.get("LicenceType", "—")
+                            emp.licence_expire_date = comp.get("LicenceExpireDate", "—")
+                        else:
+                            emp.company_address     = "—"
+                            emp.licence_type        = "—"
+                            emp.licence_expire_date = "—"
                     except Exception:
                         pass
 

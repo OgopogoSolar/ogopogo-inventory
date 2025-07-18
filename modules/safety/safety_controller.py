@@ -99,14 +99,26 @@ class SafetyController:
             return
 
         if actor != "ADMIN":
-            held = [p.permit_id for p in SafetyDAO.fetch_by_user(self.current_user.user_id)]
-            if pid not in held:
+            held_permits = SafetyDAO.fetch_by_user(self.current_user.user_id)
+            matching = next((p for p in held_permits if p.permit_id == pid), None)
+
+            if not matching:
                 QMessageBox.warning(
                     self.view,
                     "Permission Denied",
                     "You must hold this permit yourself before assigning it."
                 )
                 return
+            
+            if matching.expire_date:  # not permanent
+                if expire is None or expire > matching.expire_date:
+                    QMessageBox.warning(
+                        self.view,
+                        "Assign Failed",
+                        "You cannot assign this permit beyond your own expiration date."
+                    )
+                    return
+
 
         if uid == self.current_user.user_id:
             QMessageBox.warning(self.view, "Assign Failed", "You cannot assign a permit to yourself.")
@@ -141,11 +153,10 @@ class SafetyController:
 
         val   = self.view.duration_spin.value()
         unit  = self.view.unit_combo.currentText()
-        issue = datetime.date.today()
-
+        # issue = datetime.date.today()
+        issue = datetime.datetime.now()
         if unit == "Hours":
-            expire = datetime.datetime.combine(issue, datetime.time()) + relativedelta(hours=val)
-            expire = expire.date()
+            expire = issue + relativedelta(hours=val)
         elif unit == "Days":
             expire = issue + relativedelta(days=val)
         else:

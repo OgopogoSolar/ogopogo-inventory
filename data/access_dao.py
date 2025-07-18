@@ -741,18 +741,33 @@ class SafetyDAO:
 
     @classmethod
     def delete_type(cls, permission_id: int) -> None:
-        cur = DatabaseManager.access_connection().cursor()
-        # 1) Delete all user-permit assignments first
-        cur.execute(
-            "DELETE FROM EmployeeSafetyPermissions WHERE SafetyPermissionID = ?",
-            (permission_id,)
-        )
-        # 2) Delete all item-requirement entries using this permit
-        from data.access_dao import ItemSafetyRequirementDAO
-        ItemSafetyRequirementDAO.delete_by_permission(permission_id)
-        # 3) Now it's safe to delete the permit itself
-        sql = "DELETE FROM SafetyPermissions WHERE SafetyPermissionID = ?"
-        cur.execute(sql, (permission_id,))
+        db = DatabaseManager.access_connection()
+        cur = db.cursor()
+        try:
+            # Start transaction
+            db.begin()
+
+            # 1) Delete all user-permit assignments
+            cur.execute(
+                "DELETE FROM EmployeeSafetyPermissions WHERE SafetyPermissionID = ?",
+                (permission_id,)
+            )
+
+            # 2) Delete all item-requirements
+            from data.access_dao import ItemSafetyRequirementDAO
+            ItemSafetyRequirementDAO.delete_by_permission(permission_id)
+
+            # 3) Delete the permission type itself
+            cur.execute(
+                "DELETE FROM SafetyPermissions WHERE SafetyPermissionID = ?",
+                (permission_id,)
+            )
+
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise e
+
 
 @dataclass
 class ItemSafetyRequirement:
