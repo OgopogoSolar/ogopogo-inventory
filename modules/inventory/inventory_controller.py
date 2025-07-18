@@ -293,10 +293,14 @@ class InventoryController:
             self.view.table.horizontalHeaderItem(i).text()
             for i in range(self.view.table.columnCount())
         ]
-        placeholder_dict = {
-            headers[i]: self.view.table.item(row, i).text() or ""
-            for i in range(len(headers))
-        }
+        placeholder_dict = {}
+        for i in range(len(headers)):
+            key = headers[i]
+            val = self.view.table.item(row, i).text() or ""
+            if key == "Parameters":
+                val = val.replace("\n", ", ")
+            placeholder_dict[key] = val
+
         # 读取模板名称
         cat     = self.view.labelTypeCombo.currentText().lower()
         key     = f"default_template_{cat}"

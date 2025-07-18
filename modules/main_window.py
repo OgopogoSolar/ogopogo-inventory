@@ -352,6 +352,7 @@ class MainWindow(QMainWindow):
         main()
 
     def _apply_dark(self):
+        QApplication.setStyle("Fusion")  # 🔧 This line is missing in your current code!
         pal = QPalette()
         pal.setColor(QPalette.ColorRole.Window,         QColor("#191919"))
         pal.setColor(QPalette.ColorRole.WindowText,     QColor("#FFFFFF"))

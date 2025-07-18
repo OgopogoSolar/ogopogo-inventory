@@ -66,26 +66,26 @@ class EmployeeController:
             tbl.setItem(r, 5, QTableWidgetItem(sup_name))
 
     def on_print_label(self):
-        """Print the selected employee’s label via the shared print_label()."""
-        tbl = self.view._table
-        row = tbl.currentRow()
-        if row < 0:
+        """Print the selected employee’s label from the tree view."""
+        tree = self.view._tree
+        item = tree.currentItem()
+        if item is None:
             QMessageBox.warning(self.view, "Warning", "Please select an employee first.")
             return
 
-        # 1) Build placeholder dict from header names → cell texts
+        # 1) Build placeholder dict from headers and item columns
         headers = [
-            tbl.horizontalHeaderItem(c).text()
-            for c in range(tbl.columnCount())
+            tree.headerItem().text(c)
+            for c in range(tree.columnCount())
         ]
         placeholder_dict = {
-            headers[i]: (tbl.item(row, i).text() or "")
+            headers[i]: item.text(i)
             for i in range(len(headers))
         }
 
         # 2) Locate the template
-        settings  = QSettings("AlptraumTech", "LMS")
-        tpl_name  = settings.value("default_template_employee", "")
+        settings = QSettings("AlptraumTech", "LMS")
+        tpl_name = settings.value("default_template_employee", "")
         if not tpl_name:
             QMessageBox.warning(
                 self.view,
@@ -94,11 +94,7 @@ class EmployeeController:
             )
             return
 
-        tpl_path = (
-            Path(__file__).resolve().parents[1]
-            / "Templates"
-            / tpl_name
-        )
+        tpl_path = Path(__file__).resolve().parents[1] / "Templates" / tpl_name
         if not tpl_path.exists():
             QMessageBox.critical(
                 self.view,
@@ -107,9 +103,10 @@ class EmployeeController:
             )
             return
 
-        # 3) Delegate to the shared printer function
+        # 3) Print label
         try:
             print_label(tpl_path, placeholder_dict)
             QMessageBox.information(self.view, "Success", "Label printed.")
         except Exception as e:
             QMessageBox.critical(self.view, "Print Failed", str(e))
+
