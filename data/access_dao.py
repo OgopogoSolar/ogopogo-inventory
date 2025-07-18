@@ -744,9 +744,8 @@ class SafetyDAO:
         db = DatabaseManager.access_connection()
         cur = db.cursor()
         try:
-            # Start transaction
-            db.begin()
-
+            # db.begin()
+            
             # 1) Delete all user-permit assignments
             cur.execute(
                 "DELETE FROM EmployeeSafetyPermissions WHERE SafetyPermissionID = ?",

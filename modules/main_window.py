@@ -23,6 +23,8 @@ from data.access_dao import EmployeeDAO, SafetyDAO
 
 import pdf417gen as pdf417
 from PIL import Image
+from data.database import DatabaseManager
+import pymysql
 
 BASE_URL = "https://rfmtl.org/license"
 
@@ -256,17 +258,63 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    # def _refresh_home_labels(self):
+    #     """Refresh the Home page labels and permit table."""
+    #     u = self.current_user
+    #     self.lbl_welcome.setText(f"Welcome, {u.first_name} {u.last_name}")
+    #     self.lbl_id.setText(f"User ID: {u.user_id}")
+    #     self.lbl_type.setText(f"User Type: {u.user_type}")
+    #     self.lbl_license_type.setText(f"License Type: {getattr(u, 'licence_type', '')}")
+    #     self.lbl_expire_date.setText(f"License Expiration: {getattr(u, 'licence_expire_date', '')}")
+    #     self.lbl_company_address.setText(f"Company Address: {getattr(u, 'company_address', '')}")
+
+    #     permits = SafetyDAO.fetch_by_user(u.user_id)
+    #     self.permitTable.setRowCount(len(permits))
+    #     for r, p in enumerate(permits):
+    #         # Permit Type
+    #         self.permitTable.setItem(r, 0, QTableWidgetItem(p.permit_name))
+    #         # Start Time
+    #         start_text = p.issue_date.strftime("%Y-%m-%d %H:%M")
+    #         self.permitTable.setItem(r, 1, QTableWidgetItem(start_text))
+    #         # Expire Time
+    #         if p.expire_date is None:
+    #             expire_text = "Permanent"
+    #         else:
+    #             expire_text = p.expire_date.strftime("%Y-%m-%d %H:%M")
+    #         self.permitTable.setItem(r, 2, QTableWidgetItem(expire_text))
+    #         # Issued By
+    #         issuer = f"{p.issuer_first} {p.issuer_last}"
+    #         self.permitTable.setItem(r, 3, QTableWidgetItem(issuer))
+
     def _refresh_home_labels(self):
         """Refresh the Home page labels and permit table."""
         u = self.current_user
         self.lbl_welcome.setText(f"Welcome, {u.first_name} {u.last_name}")
         self.lbl_id.setText(f"User ID: {u.user_id}")
         self.lbl_type.setText(f"User Type: {u.user_type}")
-        lt = getattr(u, 'licence_type', '') or "—"
-        ed = getattr(u, 'licence_expire_date', '') or "—"
-        self.lbl_license_type.setText(f"License Type: {lt}")
-        self.lbl_expire_date.setText(f"License Expiration: {ed}")
-        self.lbl_company_address.setText(f"Company Address: {getattr(u, 'company_address', '')}")
+
+        lic_type = "—"
+        lic_exp = "—"
+        comp_addr = "—"
+
+        try:
+            conn = DatabaseManager.mysql_connection()
+            with conn.cursor(pymysql.cursors.DictCursor) as cur:
+                cur.execute("""
+                    SELECT LicenceType, LicenceExpireDate, CompanyAddress
+                    FROM Companies WHERE CompanyID = %s
+                """, (u.company_id,))
+                comp = cur.fetchone()
+                if comp:
+                    lic_type = comp.get("LicenceType", "—")
+                    lic_exp = comp.get("LicenceExpireDate", "—")
+                    comp_addr = comp.get("CompanyAddress", "—")
+        except Exception as e:
+            print("⚠ Error fetching company info:", e)
+
+        self.lbl_license_type.setText(f"License Type: {lic_type}")
+        self.lbl_expire_date.setText(f"License Expiration: {lic_exp}")
+        self.lbl_company_address.setText(f"Company Address: {comp_addr}")
 
         permits = SafetyDAO.fetch_by_user(u.user_id)
         self.permitTable.setRowCount(len(permits))
@@ -285,7 +333,6 @@ class MainWindow(QMainWindow):
             # Issued By
             issuer = f"{p.issuer_first} {p.issuer_last}"
             self.permitTable.setItem(r, 3, QTableWidgetItem(issuer))
-
 
     def _on_code_changed(self, idx: int):
         """Generate and display a PDF417 barcode based on selection."""
@@ -318,29 +365,6 @@ class MainWindow(QMainWindow):
             if m:
                 emp = EmployeeDAO.fetch_by_id(int(m.group(1)))
                 if emp:
-                    # fetch company info
-                    from data.database import DatabaseManager
-                    import pymysql
-                    try:
-                        conn = DatabaseManager.mysql_connection()
-                        with conn.cursor(pymysql.cursors.DictCursor) as cur:
-                            cur.execute(
-                                "SELECT CompanyAddress, LicenceType, LicenceExpireDate "
-                                "FROM Companies WHERE CompanyID=%s",
-                                (emp.company_id,)
-                            )
-                        comp = cur.fetchone()
-                        if comp:
-                            emp.company_address     = comp.get("CompanyAddress", "—")
-                            emp.licence_type        = comp.get("LicenceType", "—")
-                            emp.licence_expire_date = comp.get("LicenceExpireDate", "—")
-                        else:
-                            emp.company_address     = "—"
-                            emp.licence_type        = "—"
-                            emp.licence_expire_date = "—"
-                    except Exception:
-                        pass
-
                     self.current_user = emp
                     self._refresh_home_labels()
                     self._update_status_bar()
