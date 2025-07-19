@@ -33,6 +33,11 @@ class MainWindow(QMainWindow):
     def __init__(self, current_user):
         super().__init__()
         self.current_user   = current_user
+        self.cached_company_info = {
+    "licence_type": getattr(self.current_user, "licence_type", "—"),
+    "licence_expire_date": getattr(self.current_user, "licence_expire_date", "—"),
+    "company_address": getattr(self.current_user, "company_address", "—")
+}
         self.scanner_buffer = ""
         self.setWindowTitle("Lab Management System")
         self.resize(1000, 700)
@@ -293,9 +298,9 @@ class MainWindow(QMainWindow):
         self.lbl_id.setText(f"User ID: {u.user_id}")
         self.lbl_type.setText(f"User Type: {u.user_type}")
 
-        lic_type = "—"
-        lic_exp = "—"
-        comp_addr = "—"
+        lic_type = getattr(u, "licence_type", "—")
+        lic_exp  = getattr(u, "licence_expire_date", "—")
+        comp_addr = getattr(u, "company_address", "—")
 
         try:
             conn = DatabaseManager.mysql_connection()
@@ -306,11 +311,12 @@ class MainWindow(QMainWindow):
                 """, (u.company_id,))
                 comp = cur.fetchone()
                 if comp:
-                    lic_type = comp.get("LicenceType", "—")
-                    lic_exp = comp.get("LicenceExpireDate", "—")
-                    comp_addr = comp.get("CompanyAddress", "—")
+                    lic_type = comp.get("LicenceType", lic_type)
+                    lic_exp  = comp.get("LicenceExpireDate", lic_exp)
+                    comp_addr = comp.get("CompanyAddress", comp_addr)
         except Exception as e:
             print("⚠ Error fetching company info:", e)
+
 
         self.lbl_license_type.setText(f"License Type: {lic_type}")
         self.lbl_expire_date.setText(f"License Expiration: {lic_exp}")
@@ -365,6 +371,9 @@ class MainWindow(QMainWindow):
             if m:
                 emp = EmployeeDAO.fetch_by_id(int(m.group(1)))
                 if emp:
+                    emp.licence_type = self.cached_company_info["licence_type"]
+                    emp.licence_expire_date = self.cached_company_info["licence_expire_date"]
+                    emp.company_address = self.cached_company_info["company_address"]
                     self.current_user = emp
                     self._refresh_home_labels()
                     self._update_status_bar()
