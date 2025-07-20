@@ -1,176 +1,13 @@
-# from PyQt6.QtWidgets import (
-#     QWidget, QHBoxLayout, QVBoxLayout,
-#     QTableWidget, QTableWidgetItem,
-#     QPushButton, QLineEdit, QComboBox,
-#     QLabel, QSpinBox, QMessageBox
-# )
-# from PyQt6.QtCore import Qt
-
-# class SafetyView(QWidget):
-#     def __init__(self, controller, current_user):
-#         super().__init__()
-#         self.controller   = controller
-#         self.current_user = current_user
-#         self._init_ui()
-
-#     def _init_ui(self):
-#         self.setWindowTitle("Safety Management")
-#         layout = QHBoxLayout(self)
-
-#         # — Left: Permit-Type List & Buttons ——————————
-#         left = QVBoxLayout()
-#         left.addWidget(QLabel("Permit Types:"))
-#         self.type_table = QTableWidget(0, 1)
-#         self.type_table.setHorizontalHeaderLabels(["Type Name"])
-#         self.type_table.horizontalHeader().setStretchLastSection(True)
-#         left.addWidget(self.type_table)
-
-#         btns = QHBoxLayout()
-#         self.add_type_btn    = QPushButton("Add Type")
-#         self.edit_type_btn   = QPushButton("Edit Type")
-#         self.delete_type_btn = QPushButton("Delete Type")
-#         btns.addWidget(self.add_type_btn)
-#         btns.addWidget(self.edit_type_btn)
-#         btns.addWidget(self.delete_type_btn)
-#         left.addLayout(btns)
-
-#         layout.addLayout(left, 2)
-
-#         # — Right panel: employee assignment above, item requirements below —
-#         right = QVBoxLayout()
-
-#         # Employee Scan & Permit Assignment
-#         self.scan_input = QLineEdit()
-#         self.scan_input.setPlaceholderText("Scan Employee Code…")
-#         self.scan_input.setEchoMode(QLineEdit.EchoMode.Password)
-#         right.addWidget(self.scan_input)
-
-#         self.employee_label = QLabel("Employee: [None scanned]", self)
-#         right.addWidget(self.employee_label)
-
-#         right.addWidget(QLabel("Assign Permit:"))
-#         self.assign_type_combo = QComboBox()
-#         right.addWidget(self.assign_type_combo)
-
-#         dur = QHBoxLayout()
-#         self.duration_spin = QSpinBox()
-#         self.duration_spin.setRange(1, 8760)
-#         self.unit_combo = QComboBox()
-#         self.unit_combo.addItems(["Hours", "Days", "Months"])
-#         dur.addWidget(self.duration_spin)
-#         dur.addWidget(self.unit_combo)
-#         right.addLayout(dur)
-
-#         self.assign_btn = QPushButton("Assign Permit")
-#         right.addWidget(self.assign_btn)
-#         right.addStretch()
-
-#         # Item Safety Requirement Configuration
-#         self.bottom_label   = QLabel("Item Safety Requirements:")
-#         right.addWidget(self.bottom_label)
-
-#         self.scan_item_input = QLineEdit()
-#         self.scan_item_input.setPlaceholderText("Scan Item Code…")
-#         self.scan_item_input.setEchoMode(QLineEdit.EchoMode.Password)
-#         right.addWidget(self.scan_item_input)
-
-#         self.item_label     = QLabel("Item: [None scanned]")
-#         right.addWidget(self.item_label)
-
-#         self.req_type_combo = QComboBox()
-#         right.addWidget(self.req_type_combo)
-
-#         h_req = QHBoxLayout()
-#         self.add_req_btn    = QPushButton("Add Requirement")
-#         self.delete_req_btn = QPushButton("Remove Requirement")
-#         h_req.addWidget(self.add_req_btn)
-#         h_req.addWidget(self.delete_req_btn)
-#         right.addLayout(h_req)
-
-#         self.req_list = QTableWidget(0, 1)
-#         self.req_list.setHorizontalHeaderLabels(["Permit Type"])
-#         self.req_list.horizontalHeader().setStretchLastSection(True)
-#         right.addWidget(self.req_list)
-
-#         # Connect signals
-#         self.scan_input.returnPressed.connect(self.controller.on_scan)
-#         self.assign_btn.clicked.connect(self.controller.on_assign)
-#         self.scan_item_input.returnPressed.connect(self.controller.on_scan_item)
-#         self.add_req_btn.clicked.connect(self.controller.on_add_item_req)
-#         self.delete_req_btn.clicked.connect(self.controller.on_delete_item_req)
-
-#         layout.addLayout(right, 2)
-
-#         # — Signal Wiring —  
-#         self.add_type_btn.clicked.connect   (self.controller.on_add_type)
-#         self.edit_type_btn.clicked.connect  (self.controller.on_edit_type)
-#         self.delete_type_btn.clicked.connect(self.controller.on_delete_type)
-
-#     def reset_form(self):
-#         """Clear any pending scans or form state."""
-#         self.scan_input.clear()
-#         self.scan_item_input.clear()
-#         self.employee_label.setText("Employee: [None scanned]")
-#         self.item_label.setText("Item: [None scanned]")
-#         self.req_list.setRowCount(0)
-#         self.assign_type_combo.setCurrentIndex(0)
-#         self.req_type_combo.setCurrentIndex(0)
-
-#     def show_types(self, types: list[tuple[int,str]]):
-#         """types = list of (type_id, name)"""
-#         self.type_table.setRowCount(len(types))
-#         for r, (tid, name) in enumerate(types):
-#             item = QTableWidgetItem(name)
-#             item.setData(Qt.ItemDataRole.UserRole, tid)
-#             self.type_table.setItem(r, 0, item)
-
-#     def show_employees(self, users):
-#         """users = list of User objects"""
-#         self.employee_combo.clear()
-#         for u in users:
-#             label = f"{u.user_id}: {u.first_name} {u.last_name}"
-#             self.employee_combo.addItem(label, u.user_id)
-
-#     def show_assign_types(self, types: list[tuple[int,str]]):
-#         """Populate the right-hand permit picker."""
-#         self.assign_type_combo.clear()
-#         for tid, name in types:
-#             self.assign_type_combo.addItem(name, tid)
-
-#     def clear_scan(self):
-#         """Clear and refocus the hidden scan box."""
-#         self.scan_input.clear()
-#         self.scan_input.setFocus()
+# modules/safety/safety_view.py
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QGroupBox, QSplitter, QLabel, QLineEdit, QComboBox,
-    QSpinBox, QTableWidget, QTableWidgetItem, QPushButton,
-    QSizePolicy, QSpacerItem, QMessageBox
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit,
+    QTableWidget, QTableWidgetItem, QPushButton, QHeaderView,
+    QStackedWidget, QComboBox, QSpinBox, QSplitter, QGroupBox,
+    QDialog, QFormLayout, QDialogButtonBox
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-
-# Utility functions for consistent styling
-def styled_lineedit(placeholder: str = "") -> QLineEdit:
-    le = QLineEdit()
-    le.setFont(QFont("Segoe UI", 12))
-    le.setMinimumHeight(35)
-    le.setPlaceholderText(placeholder)
-    return le
-
-def styled_combobox() -> QComboBox:
-    cb = QComboBox()
-    cb.setFont(QFont("Segoe UI", 12))
-    cb.setMinimumHeight(35)
-    return cb
-
-def styled_button(text: str) -> QPushButton:
-    btn = QPushButton(text)
-    btn.setFont(QFont("Segoe UI", 12))
-    btn.setMinimumHeight(40)
-    btn.setMinimumWidth(120)
-    return btn
 
 class SafetyView(QWidget):
     def __init__(self, controller, current_user):
@@ -182,161 +19,176 @@ class SafetyView(QWidget):
     def _init_ui(self):
         self.setWindowTitle("Safety Management")
         self.setMinimumSize(1000, 600)
+        font = QFont("Segoe UI", 12)
 
-        # Main splitter
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        
-        # ── Left: Permit Types ─────────────────────
+        # ─── Left Pane: Permit Type Management ─────────────────
         left_group = QGroupBox("Permit Types")
-        left_group.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        left_layout = QVBoxLayout()
-        left_layout.setContentsMargins(15, 15, 15, 15)
-        left_layout.setSpacing(10)
+        lg_layout = QVBoxLayout(left_group)
+        lg_layout.setContentsMargins(10,10,10,10)
+        lg_layout.setSpacing(10)
 
-        self.type_table = QTableWidget(0, 1)
+        self.type_table = QTableWidget(0,1)
         self.type_table.setHorizontalHeaderLabels(["Type Name"])
-        self.type_table.horizontalHeader().setStretchLastSection(True)
-        self.type_table.setFont(QFont("Segoe UI", 11))
-        self.type_table.verticalHeader().setFont(QFont("Segoe UI", 9))
-        left_layout.addWidget(self.type_table)
+        self.type_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        lg_layout.addWidget(self.type_table)
 
-        btns = QHBoxLayout()
-        self.add_type_btn    = styled_button("Add Type")
-        self.edit_type_btn   = styled_button("Edit Type")
-        self.delete_type_btn = styled_button("Delete Type")
-        btns.addWidget(self.add_type_btn)
-        btns.addWidget(self.edit_type_btn)
-        btns.addWidget(self.delete_type_btn)
-        btns.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        left_layout.addLayout(btns)
+        btn_layout = QHBoxLayout()
+        self.add_type_btn    = QPushButton("Add Type")
+        self.edit_type_btn   = QPushButton("Edit Type")
+        self.delete_type_btn = QPushButton("Delete Type")
+        for b in (self.add_type_btn, self.edit_type_btn, self.delete_type_btn):
+            b.setFont(font)
+            btn_layout.addWidget(b)
+        lg_layout.addLayout(btn_layout)
 
-        left_group.setLayout(left_layout)
-        splitter.addWidget(left_group)
-
-        # ── Right: Assignment & Requirements ────────
-        right_group = QGroupBox("Assignments & Requirements")
-        right_group.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        # ─── Right Pane: Scanner + Details ────────────────────
         right_layout = QVBoxLayout()
-        right_layout.setContentsMargins(15, 15, 15, 15)
-        right_layout.setSpacing(20)
+        right_layout.setContentsMargins(10,10,10,10)
+        right_layout.setSpacing(15)
 
-        # Employee Scan & Permit Assignment
-        assign_group = QGroupBox("Employee Permit Assignment")
-        assign_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        ag_layout = QFormLayout()
-        ag_layout.setSpacing(15)
-        ag_layout.setContentsMargins(10, 10, 10, 10)
+        # Scanner input
+        scan_h = QHBoxLayout()
+        scan_lbl = QLabel("Scan Code:")
+        scan_lbl.setFont(font)
+        self.scan_input = QLineEdit()
+        self.scan_input.setFont(font)
+        self.scan_input.setPlaceholderText("Scan Employee or Item Code…")
+        scan_h.addWidget(scan_lbl)
+        scan_h.addWidget(self.scan_input)
+        right_layout.addLayout(scan_h)
 
-        self.scan_input = styled_lineedit("Scan Employee Code…")
-        self.scan_input.setEchoMode(QLineEdit.EchoMode.Password)
-        ag_layout.addRow("Scan:", self.scan_input)
+        # Info label (for employee or item)
+        self.info_label = QLabel("No record scanned")
+        self.info_label.setFont(font)
+        right_layout.addWidget(self.info_label)
 
-        self.employee_label = QLabel("Employee: [None scanned]")
-        self.employee_label.setFont(QFont("Segoe UI", 12))
-        ag_layout.addRow("", self.employee_label)
+        # Stacked widget for Employee vs Item
+        self.stack = QStackedWidget()
 
-        self.assign_type_combo = styled_combobox()
-        ag_layout.addRow("Permit Type:", self.assign_type_combo)
+        # --- Employee Panel ---
+        emp_page = QWidget()
+        emp_v = QVBoxLayout(emp_page)
 
-        dur_layout = QHBoxLayout()
-        self.duration_spin = QSpinBox()
-        self.duration_spin.setRange(1, 8760)
-        self.duration_spin.setFont(QFont("Segoe UI", 12))
-        self.duration_spin.setMinimumHeight(35)
-        self.unit_combo = styled_combobox()
-        self.unit_combo.addItems(["Hours", "Days", "Months"])
-        dur_layout.addWidget(self.duration_spin)
-        dur_layout.addWidget(self.unit_combo)
-        ag_layout.addRow("Duration:", dur_layout)
+        # 1. Table of employee permits
+        self.emp_table = QTableWidget(0, 4)
+        self.emp_table.setHorizontalHeaderLabels(
+            ["Permit Type", "Issued On", "Expires On", "Issued By"]
+        )
+        self.emp_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        emp_v.addWidget(self.emp_table)
 
-        self.assign_btn = styled_button("Assign Permit")
-        ag_layout.addRow("", self.assign_btn)
+        # 2. Buttons for Add / Edit / Delete
+        emp_btn_h = QHBoxLayout()
+        self.emp_add_btn    = QPushButton("Add Permit")
+        self.emp_edit_btn   = QPushButton("Edit Permit")
+        self.emp_delete_btn = QPushButton("Delete Permit")
+        for btn in (self.emp_add_btn, self.emp_edit_btn, self.emp_delete_btn):
+            btn.setFont(font)
+            emp_btn_h.addWidget(btn)
+        emp_v.addLayout(emp_btn_h)
 
-        assign_group.setLayout(ag_layout)
-        right_layout.addWidget(assign_group)
+        self.stack.addWidget(emp_page)
 
-        # Item Safety Requirement Configuration
-        req_group = QGroupBox("Item Safety Requirements")
-        req_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        rg_layout = QFormLayout()
-        rg_layout.setSpacing(15)
-        rg_layout.setContentsMargins(10, 10, 10, 10)
+        # --- Item Panel ---
+        item_page = QWidget()
+        itm_v = QVBoxLayout(item_page)
+        # Key/value table for item details
+        self.item_info_table = QTableWidget(0,2)
+        self.item_info_table.setHorizontalHeaderLabels(["Field","Value"])
+        self.item_info_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        itm_v.addWidget(self.item_info_table)
+        # Table of item requirements
+        self.item_req_table = QTableWidget(0,1)
+        self.item_req_table.setHorizontalHeaderLabels(["Permit Type"])
+        self.item_req_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        itm_v.addWidget(self.item_req_table)
+        # Buttons
+        item_btn_h = QHBoxLayout()
+        self.req_add_btn    = QPushButton("Add Requirement")
+        self.req_delete_btn = QPushButton("Remove Requirement")
+        for b in (self.req_add_btn, self.req_delete_btn):
+            b.setFont(font)
+            item_btn_h.addWidget(b)
+        itm_v.addLayout(item_btn_h)
 
-        self.scan_item_input = styled_lineedit("Scan Item Code…")
-        self.scan_item_input.setEchoMode(QLineEdit.EchoMode.Password)
-        rg_layout.addRow("Scan:", self.scan_item_input)
+        self.stack.addWidget(item_page)
 
-        self.item_label = QLabel("Item: [None scanned]")
-        self.item_label.setFont(QFont("Segoe UI", 12))
-        rg_layout.addRow("", self.item_label)
+        right_layout.addWidget(self.stack)
 
-        self.req_type_combo = styled_combobox()
-        rg_layout.addRow("Permit Type:", self.req_type_combo)
+        # ─── Combine Left & Right ─────────────────────────────
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        left_group.setMinimumWidth(250)
+        splitter.addWidget(left_group)
+        right_container = QWidget()
+        right_container.setLayout(right_layout)
+        splitter.addWidget(right_container)
+        splitter.setStretchFactor(1, 3)
 
-        h_req = QHBoxLayout()
-        self.add_req_btn    = styled_button("Add Requirement")
-        self.delete_req_btn = styled_button("Remove Requirement")
-        h_req.addWidget(self.add_req_btn)
-        h_req.addWidget(self.delete_req_btn)
-        h_req.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        rg_layout.addRow("", h_req)
-
-        self.req_list = QTableWidget(0, 1)
-        self.req_list.setHorizontalHeaderLabels(["Permit Type"])
-        self.req_list.horizontalHeader().setStretchLastSection(True)
-        self.req_list.setFont(QFont("Segoe UI", 11))
-        self.req_list.verticalHeader().setFont(QFont("Segoe UI", 9))
-        rg_layout.addRow("Requirements:", self.req_list)
-
-        req_group.setLayout(rg_layout)
-        right_layout.addWidget(req_group)
-        right_layout.addStretch()
-
-        right_group.setLayout(right_layout)
-        splitter.addWidget(right_group)
-
-        # Main layout with consistent margins
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(30, 20, 30, 20)
-        main_layout.addWidget(splitter)
-
-        # Signal wiring
-        self.scan_input.returnPressed.connect(self.controller.on_scan)
-        self.assign_btn.clicked.connect(self.controller.on_assign)
-        self.scan_item_input.returnPressed.connect(self.controller.on_scan_item)
-        self.add_req_btn.clicked.connect(self.controller.on_add_item_req)
-        self.delete_req_btn.clicked.connect(self.controller.on_delete_item_req)
-        self.add_type_btn.clicked.connect(self.controller.on_add_type)
-        self.edit_type_btn.clicked.connect(self.controller.on_edit_type)
-        self.delete_type_btn.clicked.connect(self.controller.on_delete_type)
+        # Final root layout
+        root = QVBoxLayout(self)
+        root.addWidget(splitter)
 
     def reset_form(self):
-        """Clear form state."""
+        """Clear scan/input, tables, and return to left‐scan state."""
         self.scan_input.clear()
-        self.scan_item_input.clear()
-        self.employee_label.setText("Employee: [None scanned]")
-        self.item_label.setText("Item: [None scanned]")
-        self.req_list.setRowCount(0)
-        self.assign_type_combo.setCurrentIndex(0)
-        self.req_type_combo.setCurrentIndex(0)
+        self.info_label.setText("No record scanned")
 
-    def show_types(self, types: list[tuple[int, str]]):
-        self.type_table.setRowCount(len(types))
-        for r, (tid, name) in enumerate(types):
-            item = QTableWidgetItem(name)
-            item.setData(Qt.ItemDataRole.UserRole, tid)
-            self.type_table.setItem(r, 0, item)
+        self.type_table.clearSelection()
+        self.emp_table.setRowCount(0)
+        self.item_info_table.setRowCount(0)
+        self.item_req_table.setRowCount(0)
 
-    def show_assign_types(self, types: list[tuple[int, str]]):
-        self.assign_type_combo.clear()
-        for tid, name in types:
-            self.assign_type_combo.addItem(name, tid)
+        self.stack.setCurrentIndex(0)
 
-    def show_item_req_types(self, types: list[tuple[int, str]]):
-        self.req_type_combo.clear()
-        for tid, name in types:
-            self.req_type_combo.addItem(name, tid)
+class PermitDurationDialog(QDialog):
+    """
+    Dialog to pick an hours/days/months/permanent duration.
+    """
+    def __init__(self, parent=None, current_days: int = 1, current_unit: str = "Days"):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Permit Duration")
+        self.setMinimumWidth(300)
 
-    def clear_scan(self):
-        self.scan_input.clear()
-        self.scan_input.setFocus()
+        font = QFont("Segoe UI", 12)
+        layout = QFormLayout(self)
+
+        self.spin = QSpinBox()
+        self.spin.setRange(1, 3650)
+        self.spin.setFont(font)
+        self.spin.setValue(current_days)
+
+        self.unit = QComboBox()
+        self.unit.setFont(font)
+        self.unit.addItems(["Hours", "Days", "Months", "Permanent"])
+        idx = self.unit.findText(current_unit)
+        if idx >= 0:
+            self.unit.setCurrentIndex(idx)
+
+        layout.addRow("Duration:", self.spin)
+        layout.addRow("Unit:", self.unit)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel,
+            self
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Disable spin when “Permanent” is selected
+        self.unit.currentTextChanged.connect(self._on_unit_changed)
+        self._on_unit_changed(self.unit.currentText())
+
+    def _on_unit_changed(self, txt: str):
+        self.spin.setEnabled(txt != "Permanent")
+
+    @property
+    def value(self) -> int:
+        return self.spin.value()
+
+    @property
+    def unitText(self) -> str:
+        return self.unit.currentText()

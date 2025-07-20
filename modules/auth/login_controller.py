@@ -5,7 +5,7 @@ from modules.auth.login_view import LoginDialog
 from data.database import DatabaseManager
 import hashlib, pymysql
 from data.license_service import LicenceService
-from data.access_dao import UserDAO
+from data.access_dao import EmployeeDAO
 import urllib.request, urllib.parse, json, urllib.error
 import wmi
 import sys
@@ -58,8 +58,8 @@ class LoginController:
             conn = DatabaseManager.mysql_connection()
             with conn.cursor(pymysql.cursors.DictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM Companies WHERE (rootAdminUsername=%s OR rootAdminEmail=%s) AND rootAdminPassword=%s",
-                    (user_input, user_input, pwd_hash)
+                    "SELECT * FROM Companies WHERE rootAdminEmail=%s AND rootAdminPassword=%s",
+                    (user_input, pwd_hash)
                 )
                 row = cur.fetchone()
         except Exception as e:
@@ -69,6 +69,38 @@ class LoginController:
         if not row:
             QMessageBox.warning(self.view, "Login Fail", "Username/email or password is incorrect.")
             return
+
+        # --- 1) Sync remote Company into local Access DB ---
+        company_id   = row["CompanyID"]
+        company_name = row.get("CompanyName", "") or ""
+        company_addr = row.get("CompanyAddress", "") or ""
+
+        # Acquire Access connection
+        ac = DatabaseManager.access_connection()
+        try:
+            with ac.cursor() as cur:
+                # a) Ensure Companies table has this CompanyID
+                cur.execute(
+                    "SELECT COUNT(*) FROM Companies WHERE CompanyID = ?",
+                    (company_id,)
+                )
+                exists = cur.fetchone()[0]  # pyodbc returns a tuple-like row
+                if exists == 0:
+                    cur.execute(
+                        "INSERT INTO Companies (CompanyID, CompanyName, Address) VALUES (?, ?, ?)",
+                        (company_id, company_name, company_addr)
+                    )
+
+                # b) Update our local Admin user’s CompanyID
+                local_user = EmployeeDAO.fetch_by_id(1)
+                if local_user:
+                    cur.execute(
+                        "UPDATE Users SET CompanyID = ? WHERE UserID = ?",
+                        (company_id, local_user.user_id)
+                    )
+        except Exception as e:
+            # If inserting or updating fails, log and continue
+            print(f"⚠ Failed to sync local Company record: {e}")
 
         if not LicenceService.is_company_licence_valid(row["CompanyID"]):
             key, ok = QInputDialog.getText(
@@ -91,7 +123,7 @@ class LoginController:
                 QMessageBox.critical(self.view, "Network Error", str(e))
                 return
 
-        local_user = UserDAO.get_by_id(1)
+        local_user = EmployeeDAO.fetch_by_id(1)
         if not local_user:
             QMessageBox.critical(self.view, "Login Error", "Local Admin user not found.")
             return

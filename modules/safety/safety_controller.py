@@ -1,44 +1,64 @@
-from PyQt6.QtWidgets import QMessageBox, QInputDialog, QTableWidgetItem
-from PyQt6.QtCore    import Qt
-from dateutil.relativedelta import relativedelta
-import datetime
+# modules/safety/safety_controller.py
 
-from modules.safety.safety_view import SafetyView
-from data.access_dao import SafetyDAO, EmployeeDAO
+import re
+import datetime
+from dateutil.relativedelta import relativedelta
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QMessageBox, QInputDialog, QTableWidgetItem
+)
+
+from modules.safety.safety_view import SafetyView, PermitDurationDialog
+from data.access_dao import (
+    SafetyDAO, EmployeeDAO,
+    ItemSafetyRequirementDAO, InventoryDAO
+)
 
 class SafetyController:
     def __init__(self, main_window, current_user):
-        self.main_window  = main_window
-        self.current_user = current_user
-        # match view signature
-        self.view         = SafetyView(self, self.current_user)
+        self.main_window   = main_window
+        self.current_user  = current_user
+        self.view          = SafetyView(self, current_user)
+        self._connect_signals()
         self.load_types()
 
-        # load type-list and employee list
-        self.load_types()
+    def _connect_signals(self):
+        # Permit‐type management
+        self.view.add_type_btn.clicked.connect(self.on_add_type)
+        self.view.edit_type_btn.clicked.connect(self.on_edit_type)
+        self.view.delete_type_btn.clicked.connect(self.on_delete_type)
+
+        # Scanner
+        self.view.scan_input.returnPressed.connect(self.on_scan)
+
+        # Employee panel
+        self.view.emp_add_btn.clicked.connect(self.on_add_employee_permit)
+        self.view.emp_edit_btn.clicked.connect(self.on_edit_employee_permit)
+        self.view.emp_delete_btn.clicked.connect(self.on_delete_employee_permit)
+
+        # Item panel
+        self.view.req_add_btn.clicked.connect(self.on_add_item_requirement)
+        self.view.req_delete_btn.clicked.connect(self.on_delete_item_requirement)
 
     def load_types(self):
+        """
+        Populate the left‐side permit types table.
+        """
         types = SafetyDAO.fetch_all_types()
-        flat  = [(t.permission_id, t.name) for t in types]
-        self.view.show_types(flat)
-        self.view.show_assign_types(flat)
-        # also prepare req‐combo for items
-        self.view.req_type_combo.clear()
-        for pid, name in flat:
-            self.view.req_type_combo.addItem(name, pid)
+        tbl = self.view.type_table
+        tbl.setRowCount(len(types))
+        for r, t in enumerate(types):
+            item = QTableWidgetItem(t.name)
+            item.setData(Qt.ItemDataRole.UserRole, t.permission_id)
+            tbl.setItem(r, 0, item)
 
-    def load_users(self):
-        role = self.current_user.user_type.upper()
-        if role == "ADMIN":
-            users = EmployeeDAO.fetch_all()
-        elif role == "SUPERVISOR":
-            users = EmployeeDAO.fetch_by_supervisor(self.current_user.user_id)
-        else:
-            users = [self.current_user]
-        self.view.show_employees(users)
+    # ─── Permit‐Type Handlers ─────────────────────────────────────
 
     def on_add_type(self):
-        name, ok = QInputDialog.getText(self.view, "Add Permit Type", "Type name:")
+        name, ok = QInputDialog.getText(
+            self.view, "Add Permit Type", "Type name:"
+        )
         if ok and name.strip():
             SafetyDAO.add_type(name.strip())
             self.load_types()
@@ -50,6 +70,7 @@ class SafetyController:
         item = self.view.type_table.item(row, 0)
         pid  = item.data(Qt.ItemDataRole.UserRole)
         current = item.text()
+
         name, ok = QInputDialog.getText(
             self.view, "Edit Permit Type", "Type name:", text=current
         )
@@ -61,159 +82,322 @@ class SafetyController:
         row = self.view.type_table.currentRow()
         if row < 0:
             return
-        pid = self.view.type_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        item = self.view.type_table.item(row, 0)
+        pid  = item.data(Qt.ItemDataRole.UserRole)
+
         if QMessageBox.question(
             self.view, "Delete Type", "Delete this permit type?"
         ) == QMessageBox.StandardButton.Yes:
             SafetyDAO.delete_type(pid)
             self.load_types()
 
+    # ─── Scan Handler ────────────────────────────────────────────
+
     def on_scan(self):
         code = self.view.scan_input.text().strip()
-        self.view.clear_scan()
-        # Expect format "Alptraum<id>Technologies"
-        prefix, suffix = "Alptraum", "Technologies"
-        if not (code.startswith(prefix) and code.endswith(suffix)):
-            QMessageBox.warning(self.view, "Scan Failed", "Invalid code format.")
+        self.view.scan_input.clear()
+
+        # Employee code format: Alptraum<digits>Technologies
+        m = re.fullmatch(r"Alptraum(\d+)Technologies", code)
+        if m:
+            uid = int(m.group(1))
+        elif code.isdigit():
+            uid = int(code)
+        else:
+            uid = None
+
+        if uid is not None:
+            emp = EmployeeDAO.fetch_by_id(uid)
+            if emp:
+                self._show_employee(emp)
+                return
+
+        # Otherwise try item
+        itm = InventoryDAO.fetch_by_id(code)
+        if itm:
+            self._show_item(itm)
             return
-        num = code[len(prefix):-len(suffix)]
-        try:
-            uid = int(num)
-        except ValueError:
-            QMessageBox.warning(self.view, "Scan Failed", f"Bad employee number: {num}")
-            return
-        from data.access_dao import EmployeeDAO
-        emp = EmployeeDAO.fetch_by_id(uid)
-        if not emp:
-            QMessageBox.warning(self.view, "Scan Failed", f"Employee {uid} not found.")
-            return
-        # store for assign, and display
-        self.scanned_employee = emp
-        self.view.employee_label.setText(
+
+        QMessageBox.warning(self.view, "Scan Failed", "No matching employee or item.")
+
+    # ─── Employee Panel ─────────────────────────────────────────
+
+    def _show_employee(self, emp):
+        self.current_emp = emp
+        self.view.stack.setCurrentIndex(0)
+        self.view.info_label.setText(
             f"Employee: {emp.user_id} – {emp.first_name} {emp.last_name}"
         )
+        rows = SafetyDAO.fetch_by_user(emp.user_id)
+        tbl = self.view.emp_table
+        tbl.setRowCount(len(rows))
+        for r, p in enumerate(rows):
+            # Permit Type
+            tbl.setItem(r, 0, QTableWidgetItem(p.permit_name))
 
-    def on_assign(self):
-        # Gather selection
-        actor = self.current_user.user_type.upper()
-        # must have scanned first
-        if not hasattr(self, "scanned_employee"):
-            QMessageBox.warning(self.view, "Assign Failed", "Please scan an employee first.")
+            # Issued On (store the real datetime in UserRole)
+            issue_item = QTableWidgetItem(p.issue_date.strftime("%Y-%m-%d %H:%M"))
+            issue_item.setData(Qt.ItemDataRole.UserRole, p.issue_date)
+            tbl.setItem(r, 1, issue_item)
+
+            # Expires On
+            exp = "Permanent" if p.expire_date is None \
+                  else p.expire_date.strftime("%Y-%m-%d %H:%M")
+            tbl.setItem(r, 2, QTableWidgetItem(exp))
+
+            # Issued By
+            issuer = f"{p.issuer_first} {p.issuer_last}"
+            tbl.setItem(r, 3, QTableWidgetItem(issuer))
+
+    # ─── Employee permit CRUD ─────────────────────────────────
+    def on_add_employee_permit(self):
+        if not hasattr(self, 'current_emp'):
             return
-        uid = self.scanned_employee.user_id
-        pid   = self.view.assign_type_combo.currentData()
-        if uid is None or pid is None:
-            QMessageBox.warning(self.view, "Assign Failed", "Select employee and permit type.")
+
+        # ① Pick permit type
+        types = [(t.permission_id, t.name) for t in SafetyDAO.fetch_all_types()]
+        names = [nm for _, nm in types]
+        name, ok = QInputDialog.getItem(
+            self.view,
+            "Select Permit Type",
+            "Permit Type:",
+            names,
+            0,
+            False
+        )
+        if not ok:
             return
-        
-        # Security: only Admin can assign permits they do NOT hold.
-        # Supervisors (and any non-Admin) must already have the permit.
-        actor = self.current_user.user_type.upper()
-        if actor != "ADMIN":
-            held = [p.permit_id for p in SafetyDAO.fetch_by_user(self.current_user.user_id)]
-            if pid not in held:
-                QMessageBox.warning(
+        pid = next(pid for pid, nm in types if nm == name)
+
+        # ② Unified duration dialog (hours/days/months/permanent)
+        dlg = PermitDurationDialog(self.view)
+        if not dlg.exec():
+            return
+        now  = datetime.datetime.now()
+        val  = dlg.value
+        unit = dlg.unitText
+
+        # Compute a relativedelta or None for permanent
+        if unit == "Permanent":
+            delta = None
+        elif unit == "Hours":
+            delta = relativedelta(hours=val)
+        elif unit == "Days":
+            delta = relativedelta(days=val)
+        else:  # "Months"
+            delta = relativedelta(months=val)
+
+        # ③ Check for an existing permit of this type
+        existing = SafetyDAO.fetch_by_user(self.current_emp.user_id)
+        match = next((p for p in existing if p.permit_id     == pid), None)
+
+        if match:
+            # Extend the existing one
+            old_issue  = match.issue_date
+            old_expire = match.expire_date
+
+            if old_expire is None:
+                # Already permanent – nothing to do
+                QMessageBox.information(
                     self.view,
-                    "Permission Denied",
-                    "You must hold this permit yourself before assigning it."
+                    "Already Permanent",
+                    "This permit is already permanent."
                 )
                 return
 
-        # Prevent assigning to self
-        if uid == self.current_user.user_id:
-            QMessageBox.warning(self.view, "Assign Failed", "You cannot assign a permit to yourself.")
-            return
+            # Start from the later of now vs old_expire
+            base = old_expire if old_expire > now else now
+            new_expire = base + delta if delta else None
 
-        # Fetch target user to inspect their level
-        target = EmployeeDAO.fetch_by_id(uid)
-        tlevel = target.user_type.upper()
-
-        # Rule 2 & 3 & 4: permissions by role
-        if actor == "EMPLOYEE":
-            QMessageBox.warning(self.view, "Permission Denied", "Employees cannot assign permits.")
-            return
-        if actor == "SUPERVISOR" and tlevel != "EMPLOYEE":
-            QMessageBox.warning(self.view, "Permission Denied", "Supervisors can assign only to employees.")
-            return
-        if actor == "ADMIN" and tlevel == "ADMIN":
-            QMessageBox.warning(self.view, "Assign Failed", "Cannot assign permits to other admins.")
-            return
-
-        # Compute expiration using datetime
-        val   = self.view.duration_spin.value()
-        unit  = self.view.unit_combo.currentText()
-        issue_date = datetime.date.today()
-        if unit == "Hours":
-            expire = issue_date + relativedelta(hours=val)
-        elif unit == "Days":
-            expire = issue_date + relativedelta(days=val)
+            SafetyDAO.update_permit(
+                self.current_emp.user_id,
+                pid,
+                old_issue,
+                new_expire,
+                self.current_user.user_id
+            )
         else:
-            expire = issue_date + relativedelta(months=val)
+            # No existing permit – insert a new one
+            expire = None if delta is None else now + delta
+            SafetyDAO.add_permit(
+                self.current_emp.user_id,
+                pid,
+                self.current_user.user_id,
+                now,
+                expire
+            )
 
-        # Enforce max 366 days via delta (works for date or datetime)
-        if (expire - issue_date).days > 366:
+        # ④ Refresh the table
+        self._show_employee(self.current_emp)
+
+    def on_edit_employee_permit(self):
+        if not hasattr(self, 'current_emp'):
+            return
+        tbl = self.view.emp_table
+        row = tbl.currentRow()
+        if row < 0:
+            QMessageBox.warning(self.view, "Edit Failed", "Please select a permit to edit.")
+            return
+
+        # Identify permit
+        permit_name = tbl.item(row, 0).text()
+        types = [(t.permission_id, t.name) for t in SafetyDAO.fetch_all_types()]
+        pid = next(pid for pid, nm in types if nm == permit_name)
+
+        # Pull the exact issue_date object we stored
+        issue = tbl.item(row, 1).data(Qt.ItemDataRole.UserRole)
+
+        # Figure out current duration for the dialog
+        expires_text = tbl.item(row, 2).text()
+        if expires_text == "Permanent":
+            current_unit = "Permanent"
+            current_days = 1
+        else:
+            exp_dt = datetime.datetime.strptime(expires_text, "%Y-%m-%d %H:%M")
+            delta = exp_dt - issue
+            if delta.days >= 30 and delta.days % 30 == 0:
+                current_unit = "Months"
+                current_days = delta.days // 30
+            elif delta.days >= 1:
+                current_unit = "Days"
+                current_days = delta.days
+            else:
+                current_unit = "Hours"
+                current_days = max(delta.seconds // 3600, 1)
+
+        dlg = PermitDurationDialog(self.view, current_days, current_unit)
+        if not dlg.exec():
+            return
+
+        val = dlg.value
+        unit = dlg.unitText
+
+        if unit == "Permanent":
+            new_expire = None
+        elif unit == "Hours":
+            new_expire = issue + relativedelta(hours=val)
+        elif unit == "Days":
+            new_expire = issue + relativedelta(days=val)
+        else:
+            new_expire = issue + relativedelta(months=val)
+
+        SafetyDAO.update_permit(
+            self.current_emp.user_id,
+            pid,
+            issue,
+            new_expire,
+            self.current_user.user_id
+        )
+        self._show_employee(self.current_emp)
+
+    def on_delete_employee_permit(self):
+        if not hasattr(self, 'current_emp'):
+            return
+        tbl = self.view.emp_table
+        row = tbl.currentRow()
+        if row < 0:
+            QMessageBox.warning(self.view, "Delete Failed", "Please select a permit to delete.")
+            return
+
+        if QMessageBox.question(
+            self.view,
+            "Delete Permit",
+            "Are you sure you want to delete this permit?"
+        ) != QMessageBox.StandardButton.Yes:
+            return
+
+        # Identify permit & exact issue_date
+        permit_name = tbl.item(row, 0).text()
+        types = [(t.permission_id, t.name) for t in SafetyDAO.fetch_all_types()]
+        pid = next(pid for pid, nm in types if nm == permit_name)
+        issue = tbl.item(row, 1).data(Qt.ItemDataRole.UserRole)
+
+        # Delete in DB and remove row in UI
+        SafetyDAO.delete_permit(self.current_emp.user_id, pid, issue)
+        tbl.removeRow(row)
+
+    # ─── Item requirement CRUD ───────────────────────────────
+    def on_add_item_requirement(self):
+        """
+        Add a safety‐permit requirement to the currently displayed item.
+        If the permit is already required, show a warning instead of crashing.
+        """
+        if not hasattr(self, "current_item"):
+            return
+
+        # 1) Let user pick a permit type
+        types = [(t.permission_id, t.name) for t in SafetyDAO.fetch_all_types()]
+        names = [nm for _, nm in types]
+        name, ok = QInputDialog.getItem(
+            self.view,
+            "Select Permit Type",
+            "Permit Type:",
+            names,
+            0,
+            False
+        )
+        if not ok:
+            return
+        pid = next(pid for pid, nm in types if nm == name)
+
+        # 2) Check if it already exists
+        existing_ids = ItemSafetyRequirementDAO.fetch_by_item(self.current_item.item_id)
+        if pid in existing_ids:
             QMessageBox.warning(
                 self.view,
-                "Assign Failed",
-                "Permit duration cannot exceed 366 days."
+                "Already Required",
+                f"Item '{self.current_item.item_id}' already requires permit '{name}'."
             )
             return
 
-        # All checks passed → persist
-        SafetyDAO.add_permit(
-            employee_id          = uid,
-            safety_permission_id = pid,
-            issuer_employee_id   = self.current_user.user_id,
-            issue_date           = issue,
-            expire_date          = expire
-        )
-        QMessageBox.information(self.view, "Success", "Permit assigned.")
+        # 3) Insert the new requirement
+        ItemSafetyRequirementDAO.add_requirement(self.current_item.item_id, pid)
 
-    # ① Scan an item to configure its requirements
-    def on_scan_item(self):
-        code = self.view.scan_item_input.text().strip()
-        self.view.scan_item_input.clear()
-        from data.access_dao import InventoryDAO
+        # 4) Refresh the item‐detail panel
+        self._show_item(self.current_item)
+        
+    def on_delete_item_requirement(self):
+        if not hasattr(self,'current_item'): return
+        tbl = self.view.item_req_table; row=tbl.currentRow()
+        if row<0: return
 
-        itm = InventoryDAO.fetch_by_id(code)
-        if not itm:
-            QMessageBox.warning(self.view, "Scan Failed", f"Item '{code}' not found.")
-            return
-        self.scanned_item = itm
-        self.view.item_label.setText(f"Item: {itm.item_id} – {itm.description}")
-        self.load_item_requirements(itm.item_id)
+        name = tbl.item(row,0).text()
+        type_map = {t.name:t.permission_id for t in SafetyDAO.fetch_all_types()}
+        pid = type_map.get(name)
+        if pid is None: return
 
-    def load_item_requirements(self, item_id: str):
-        from data.access_dao import ItemSafetyRequirementDAO
-        req_ids = ItemSafetyRequirementDAO.fetch_by_item(item_id)
-        # map to names
-        types = {t.permission_id:t.name for t in SafetyDAO.fetch_all_types()}
-        self.view.req_list.setRowCount(len(req_ids))
+        ItemSafetyRequirementDAO.delete_requirement(self.current_item.item_id, pid)
+        self._show_item(self.current_item)
+
+    def _show_item(self, itm):
+        # keep a reference if you need to edit/delete later
+        self.current_item = itm
+
+        # switch the stacked widget to the item‐detail page (index 1)
+        self.view.stack.setCurrentIndex(1)
+        self.view.info_label.setText(f"Item: {itm.item_id}")
+
+        # 1) Populate the key/value table
+        tbl = self.view.item_info_table
+        rows = [
+            ("Category", itm.category_code),
+            ("SubCategory", itm.subcategory_code),
+            ("Location", itm.location),
+            ("Quantity", str(itm.quantity)),
+            ("Status", itm.status),
+            ("Description", itm.description or ""),
+            ("Price", f"{itm.price:.2f}" if itm.price is not None else ""),
+        ]
+        tbl.setRowCount(len(rows))
+        for r, (field, val) in enumerate(rows):
+            tbl.setItem(r, 0, QTableWidgetItem(field))
+            tbl.setItem(r, 1, QTableWidgetItem(val))
+
+        # 2) Populate the “requirements” list
+        req_ids = ItemSafetyRequirementDAO.fetch_by_item(itm.item_id)
+        type_map = {t.permission_id: t.name for t in SafetyDAO.fetch_all_types()}
+        tbl2 = self.view.item_req_table
+        tbl2.setRowCount(len(req_ids))
         for r, pid in enumerate(req_ids):
-            name = types.get(pid, str(pid))
-            cell = QTableWidgetItem(name)
-            cell.setData(Qt.ItemDataRole.UserRole, pid)
-            self.view.req_list.setItem(r, 0, cell)
-
-    # ② Add a requirement to the scanned item
-    def on_add_item_req(self):
-        if not hasattr(self, "scanned_item"):
-            QMessageBox.warning(self.view, "Error", "Please scan an item first.")
-            return
-        pid = self.view.req_type_combo.currentData()
-        from data.access_dao import ItemSafetyRequirementDAO
-        ItemSafetyRequirementDAO.add_requirement(self.scanned_item.item_id, pid)
-        self.load_item_requirements(self.scanned_item.item_id)
-
-    # ③ Remove a requirement from the scanned item
-    def on_delete_item_req(self):
-        if not hasattr(self, "scanned_item"):
-            QMessageBox.warning(self.view, "Error", "Please scan an item first.")
-            return
-        row = self.view.req_list.currentRow()
-        if row < 0:
-            return
-        pid = self.view.req_list.item(row, 0).data(Qt.ItemDataRole.UserRole)
-        from data.access_dao import ItemSafetyRequirementDAO
-        ItemSafetyRequirementDAO.delete_requirement(self.scanned_item.item_id, pid)
-        self.load_item_requirements(self.scanned_item.item_id)
+            name = type_map.get(pid, str(pid))
+            tbl2.setItem(r, 0, QTableWidgetItem(name))
