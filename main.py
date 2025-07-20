@@ -1,20 +1,146 @@
-# main.py
-
 import sys
-from PyQt6.QtWidgets import QApplication, QMessageBox
+import subprocess
+import urllib.request
+import json
+import time
+import os
+import tempfile
+
+from PyQt6.QtWidgets import (
+    QApplication, QMessageBox, QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout
+)
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+
 from modules.auth.login_controller import LoginController
 from modules.main_window import MainWindow
+from utils.version import CURRENT_VERSION
 
-from PyQt6.QtGui import QIcon
+VERSION_URL = "https://rfmtl.org/version.json"
+
+class DownloadThread(QThread):
+    progress = pyqtSignal(int)
+    speed = pyqtSignal(str)
+    eta = pyqtSignal(str)
+    finished = pyqtSignal()
+    cancelled = pyqtSignal()
+
+    def __init__(self, url, output_path):
+        super().__init__()
+        self.url = url
+        self.output_path = output_path
+        self._cancel = False
+
+    def run(self):
+        try:
+            req = urllib.request.Request(self.url)
+            with urllib.request.urlopen(req) as response:
+                total_size = int(response.getheader('Content-Length').strip())
+                downloaded = 0
+                start_time = time.time()
+                chunk_size = 8192
+
+                with open(self.output_path, 'wb') as f:
+                    while not self._cancel:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        elapsed = time.time() - start_time
+                        percent = int((downloaded / total_size) * 100)
+                        self.progress.emit(percent)
+                        speed_kbps = downloaded / elapsed / 1024
+                        self.speed.emit(f"Speed: {speed_kbps:.1f} KB/s")
+
+                        remaining = total_size - downloaded
+                        if speed_kbps > 0:
+                            seconds_left = remaining / (speed_kbps * 1024)
+                            mins, secs = divmod(int(seconds_left), 60)
+                            self.eta.emit(f"ETA: {mins}m {secs}s")
+                        else:
+                            self.eta.emit("ETA: Calculating...")
+
+                if self._cancel:
+                    self.cancelled.emit()
+                else:
+                    self.finished.emit()
+        except Exception as e:
+            print(f"[Download Failed] {e}")
+            self.cancelled.emit()
+
+    def cancel(self):
+        self._cancel = True
+
+class DownloadDialog(QDialog):
+    def __init__(self, url, output_path):
+        super().__init__()
+        self.setWindowTitle("Downloading Update")
+        self.setFixedSize(420, 160)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+
+        self.label = QLabel("Downloading update...")
+        self.progress_bar = QProgressBar()
+        self.speed_label = QLabel("Speed: 0 KB/s")
+        self.eta_label = QLabel("ETA: --")
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.cancel_download)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.cancel_button)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+        layout.addWidget(self.progress_bar)
+        layout.addWidget(self.speed_label)
+        layout.addWidget(self.eta_label)
+        layout.addLayout(btn_layout)
+        self.setLayout(layout)
+
+        self.thread = DownloadThread(url, output_path)
+        self.thread.progress.connect(self.progress_bar.setValue)
+        self.thread.speed.connect(self.speed_label.setText)
+        self.thread.eta.connect(self.eta_label.setText)
+        self.thread.finished.connect(self.accept)
+        self.thread.cancelled.connect(self.reject)
+        self.thread.start()
+
+    def cancel_download(self):
+        self.thread.cancel()
+        self.cancel_button.setEnabled(False)
+        self.label.setText("Cancelling...")
+
+def check_for_update():
+    try:
+        with urllib.request.urlopen(VERSION_URL, timeout=3) as resp:
+            meta = json.load(resp)
+
+        latest_version = meta.get("version")
+        download_url = meta.get("url")
+
+        if latest_version and latest_version != CURRENT_VERSION:
+            reply = QMessageBox.question(
+                None, "Update Available",
+                f"Version {latest_version} is available.\nDo you want to update now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes and download_url:
+                temp_path = os.path.join(tempfile.gettempdir(), "LMS_Update.exe")
+                dialog = DownloadDialog(download_url, temp_path)
+                if dialog.exec():  # Only proceed if download finishes
+                    subprocess.Popen(f'start "" "{temp_path}"', shell=True)
+                    sys.exit(0)
+    except Exception as e:
+        print(f"[Update Check Failed] {e}")
 
 def main():
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon("icon.ico"))
 
     check_for_update()
 
     login = LoginController()
-    # PyQt6 uses exec() on QDialog
     if not login.exec():
         sys.exit(0)
 
@@ -22,29 +148,6 @@ def main():
     main_win = MainWindow(user)
     main_win.show()
     sys.exit(app.exec())
-
-import pkg_resources, subprocess, sys
-import urllib.request, json
-
-def check_for_update():
-    try:
-        with urllib.request.urlopen("https://rfmtl.org/version.json", timeout=3) as resp:
-            meta = json.load(resp)
-        current = pkg_resources.get_distribution("your-package-name").version
-        if meta["version"] != current:
-            ans = QMessageBox.question(
-                None, "Update Available",
-                f"v{meta['version']} is available. Download & install?"
-            )
-            if ans == QMessageBox.StandardButton.Yes:
-                # download new installer via urllib
-                fn = "update.exe"
-                with urllib.request.urlopen(meta["url"]) as src, open(fn, "wb") as dst:
-                    dst.write(src.read())
-                subprocess.Popen([fn])
-                sys.exit(0)
-    except Exception:
-        pass
 
 if __name__ == "__main__":
     main()

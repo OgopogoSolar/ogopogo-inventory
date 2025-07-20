@@ -5,7 +5,7 @@ from modules.auth.login_view import LoginDialog
 from data.database import DatabaseManager
 import hashlib, pymysql
 from data.license_service import LicenceService
-from data.access_dao import EmployeeDAO
+from data.access_dao import UserDAO
 import urllib.request, urllib.parse, json, urllib.error
 import wmi
 import sys
@@ -58,8 +58,8 @@ class LoginController:
             conn = DatabaseManager.mysql_connection()
             with conn.cursor(pymysql.cursors.DictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM Companies WHERE rootAdminEmail=%s AND rootAdminPassword=%s",
-                    (user_input, pwd_hash)
+                    "SELECT * FROM Companies WHERE (rootAdminUsername=%s OR rootAdminEmail=%s) AND rootAdminPassword=%s",
+                    (user_input, user_input, pwd_hash)
                 )
                 row = cur.fetchone()
         except Exception as e:
@@ -91,7 +91,7 @@ class LoginController:
                 QMessageBox.critical(self.view, "Network Error", str(e))
                 return
 
-        local_user = EmployeeDAO.fetch_by_id(1)
+        local_user = UserDAO.get_by_id(1)
         if not local_user:
             QMessageBox.critical(self.view, "Login Error", "Local Admin user not found.")
             return

@@ -39,7 +39,7 @@
    <item>
     <widget class="QLineEdit" name="userLineEdit">
      <property name="placeholderText">
-      <string>Email Address</string>
+      <string>Username</string>
      </property>
      <property name="styleSheet">
       <string notr="true">

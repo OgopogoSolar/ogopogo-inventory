@@ -244,8 +244,7 @@ class SafetyView(QWidget):
         self.duration_spin.setFont(QFont("Segoe UI", 12))
         self.duration_spin.setMinimumHeight(35)
         self.unit_combo = styled_combobox()
-        self.unit_combo.addItems(["Hours", "Days", "Months", "Permanent"])
-        self.unit_combo.currentTextChanged.connect(self._on_unit_changed)
+        self.unit_combo.addItems(["Hours", "Days", "Months"])
         dur_layout.addWidget(self.duration_spin)
         dur_layout.addWidget(self.unit_combo)
         ag_layout.addRow("Duration:", dur_layout)
@@ -341,14 +340,3 @@ class SafetyView(QWidget):
     def clear_scan(self):
         self.scan_input.clear()
         self.scan_input.setFocus()
-
-    def _on_unit_changed(self, text):
-        if text == "Permanent":
-            self.duration_spin.setEnabled(False)
-            self.duration_spin.setSpecialValueText("∞")
-            self.duration_spin.setValue(self.duration_spin.minimum())  # ensure text shows
-        else:
-            self.duration_spin.setEnabled(True)
-            self.duration_spin.setSpecialValueText("")  # remove special text
-
-
