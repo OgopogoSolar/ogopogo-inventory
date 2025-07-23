@@ -59,6 +59,7 @@ DDL_STATEMENTS = [
         LastName      TEXT(255),
         FirstName     TEXT(255),
         UserType      TEXT(20)    NOT NULL,
+        RfidUID       TEXT(255)   NULL,
         CreatedAt     DATETIME    NOT NULL,
         FOREIGN KEY (CompanyID)    REFERENCES Companies(CompanyID),
         FOREIGN KEY (SupervisorID) REFERENCES Users(UserID)

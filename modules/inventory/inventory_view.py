@@ -317,11 +317,11 @@
 #         # reload full list
 #         self.controller.load_items()
 
-#     def _current_item_id(self) -> str | None:
-#         r = self.table.currentRow()
-#         if r < 0:
-#             return None
-#         return self.table.item(r, 0).text()
+    # def _current_item_id(self) -> str | None:
+    #     r = self.table.currentRow()
+    #     if r < 0:
+    #         return None
+    #     return self.table.item(r, 0).text()
 
 #     def refresh(self, items: list[Item]):
 #         """由 Controller 调用以刷新表格显示"""
@@ -436,6 +436,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+
 
 from data.access_dao import (
     InventoryDAO, Item, EmployeeDAO,
@@ -548,10 +550,13 @@ class ItemDialog(QDialog):
             QDialogButtonBox.StandardButton.Apply |
             QDialogButtonBox.StandardButton.Cancel
         )
-        btns.button(QDialogButtonBox.StandardButton.Apply).setText("Apply")
-        btns.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancel")
-        btns.accepted.connect(self.accept)
-        btns.rejected.connect(self.reject)
+        apply_btn = btns.button(QDialogButtonBox.StandardButton.Apply)
+        cancel_btn = btns.button(QDialogButtonBox.StandardButton.Cancel)
+        apply_btn.setText("Apply")
+        cancel_btn.setText("Cancel")
+        apply_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+
 
         main_layout.addLayout(form)
         main_layout.addWidget(btns)
@@ -568,9 +573,10 @@ class ItemDialog(QDialog):
             if idx != -1:
                 self._subcat_combo.setCurrentIndex(idx)
             self._reload_parameters()
-            for i, le in self._param_widgets.items():
-                if i+2 < len(parts):
-                    le.setText(parts[i+2])
+            param_values = parts[2:]  # Skip category and subcategory
+            for position, le in self._param_widgets.items():
+                if 1 <= position <= len(param_values):
+                    le.setText(param_values[position - 1])
             self._desc.setText(item.description)
             self._qty.setValue(item.quantity)
             self._status.setCurrentText(item.status)
@@ -734,15 +740,47 @@ class InventoryView(QWidget):
         self.labelTypeCombo.setCurrentIndex(0)
         self.printBtn.setEnabled(False)
         self.controller.load_items()
+    
+    def _current_item_id(self) -> str | None:
+        r = self.table.currentRow()
+        if r < 0:
+            return None
+        return self.table.item(r, 0).text()
+
+    # def refresh(self, items: list[Item]):
+    #     self.table.setRowCount(len(items))
+    #     for r, itm in enumerate(items):
+    #         parts = itm.item_id.split('-')[2:]
+    #         holder = ""
+    #         if itm.holder_id:
+    #             u = EmployeeDAO.fetch_by_id(itm.holder_id)
+    #             holder = f"{u.first_name} {u.last_name}" if u else ""
+    #         from data.access_dao import ItemSafetyRequirementDAO, SafetyDAO
+    #         reqs = ItemSafetyRequirementDAO.fetch_by_item(itm.item_id)
+    #         type_map = {t.permission_id: t.name for t in SafetyDAO.fetch_all_types()}
+    #         req_text = "\n".join(type_map.get(pid, str(pid)) for pid in reqs)
+
+    #         vals = [
+    #             itm.item_id, itm.category_code, itm.subcategory_code,
+    #             itm.location, itm.quantity, itm.status,
+    #             holder, " ".join(parts).strip(), req_text
+    #         ]
+    #         for c, v in enumerate(vals):
+    #             self.table.setItem(r, c, QTableWidgetItem(str(v)))
+    #     if items:
+    #         self.table.selectRow(0)
 
     def refresh(self, items: list[Item]):
         self.table.setRowCount(len(items))
         for r, itm in enumerate(items):
             parts = itm.item_id.split('-')[2:]
+            param_text = "\n".join(parts).strip()
+
             holder = ""
             if itm.holder_id:
                 u = EmployeeDAO.fetch_by_id(itm.holder_id)
                 holder = f"{u.first_name} {u.last_name}" if u else ""
+
             from data.access_dao import ItemSafetyRequirementDAO, SafetyDAO
             reqs = ItemSafetyRequirementDAO.fetch_by_item(itm.item_id)
             type_map = {t.permission_id: t.name for t in SafetyDAO.fetch_all_types()}
@@ -751,10 +789,16 @@ class InventoryView(QWidget):
             vals = [
                 itm.item_id, itm.category_code, itm.subcategory_code,
                 itm.location, itm.quantity, itm.status,
-                holder, " ".join(parts).strip(), req_text
+                holder, param_text, req_text
             ]
+
             for c, v in enumerate(vals):
-                self.table.setItem(r, c, QTableWidgetItem(str(v)))
+                item = QTableWidgetItem(str(v))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignTop)
+                item.setToolTip(str(v))  # Optional: tooltip on hover
+                self.table.setItem(r, c, item)
+
+        self.table.resizeRowsToContents()  # 👈 Make rows adjust height for multiline
         if items:
             self.table.selectRow(0)
 
@@ -799,7 +843,7 @@ class CheckDialog(QDialog):
         ):
             fld = QLabel()
             fld.setWordWrap(True)
-            fld.setFont(QFont("Segoe UI", 12))
+            fld.setFont(QFont("Segoe UI", 11))
             form.addRow(f"{label}:", fld)
             self.info_fields[label.lower()] = fld
 
@@ -809,17 +853,17 @@ class CheckDialog(QDialog):
         form.addRow("SOP:", self.sop_btn)
 
         self.image_label = QLabel()
-        self.image_label.setFixedSize(256, 256)
+        self.image_label.setFixedSize(100, 100)
         self.image_label.setScaledContents(True)
         form.addRow("Image:", self.image_label)
 
         self.req_label = QLabel()
         self.req_label.setWordWrap(True)
-        self.req_label.setFont(QFont("Segoe UI", 12))
+        self.req_label.setFont(QFont("Segoe UI", 11))
         form.addRow("Safety Requirements:", self.req_label)
 
         self.status_label = QLabel()
-        self.status_label.setFont(QFont("Segoe UI", 12))
+        self.status_label.setFont(QFont("Segoe UI", 11))
         form.addRow("", self.status_label)
 
         main_layout.addLayout(form)

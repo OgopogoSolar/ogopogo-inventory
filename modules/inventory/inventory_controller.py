@@ -294,7 +294,7 @@ class InventoryController:
             for i in range(self.view.table.columnCount())
         ]
         placeholder_dict = {
-            headers[i]: self.view.table.item(row, i).text() or ""
+            headers[i]: self.view.table.item(row, i).text().replace("\n", " ") if self.view.table.item(row, i) else ""
             for i in range(len(headers))
         }
         # 读取模板名称

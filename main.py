@@ -112,18 +112,58 @@ class DownloadDialog(QDialog):
         self.cancel_button.setEnabled(False)
         self.label.setText("Cancelling...")
 
+def compare_versions(version1, version2):
+    """
+    Compare two semantic version strings.
+    Returns:
+        1 if version1 > version2
+        0 if version1 == version2
+        -1 if version1 < version2
+    """
+    def parse_version(version):
+        # Remove any 'v' prefix and split by dots
+        clean_version = version.lstrip('v')
+        return [int(x) for x in clean_version.split('.')]
+    
+    try:
+        v1_parts = parse_version(version1)
+        v2_parts = parse_version(version2)
+        
+        # Pad shorter version with zeros
+        max_len = max(len(v1_parts), len(v2_parts))
+        v1_parts.extend([0] * (max_len - len(v1_parts)))
+        v2_parts.extend([0] * (max_len - len(v2_parts)))
+        
+        # Compare each part
+        for i in range(max_len):
+            if v1_parts[i] > v2_parts[i]:
+                return 1
+            elif v1_parts[i] < v2_parts[i]:
+                return -1
+        
+        return 0  # Versions are equal
+    except (ValueError, AttributeError):
+        # Fallback to string comparison if parsing fails
+        if version1 == version2:
+            return 0
+        elif version1 > version2:
+            return 1
+        else:
+            return -1
+
 def check_for_update():
     try:
-        with urllib.request.urlopen(VERSION_URL, timeout=3) as resp:
+        with urllib.request.urlopen(VERSION_URL, timeout=5) as resp:
             meta = json.load(resp)
 
         latest_version = meta.get("version")
         download_url = meta.get("url")
 
-        if latest_version and latest_version != CURRENT_VERSION:
+        # Only show update dialog if latest version is actually newer
+        if latest_version and compare_versions(latest_version, CURRENT_VERSION) > 0:
             reply = QMessageBox.question(
                 None, "Update Available",
-                f"Version {latest_version} is available.\nDo you want to update now?",
+                f"Version {latest_version} is available (you have {CURRENT_VERSION}).\nDo you want to update now?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes and download_url:
@@ -133,7 +173,8 @@ def check_for_update():
                     subprocess.Popen(f'start "" "{temp_path}"', shell=True)
                     sys.exit(0)
     except Exception as e:
-        print(f"[Update Check Failed] {e}")
+        # Silently handle update check failures - app should continue to work
+        pass
 
 def main():
     app = QApplication(sys.argv)

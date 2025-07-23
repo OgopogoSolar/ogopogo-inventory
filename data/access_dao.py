@@ -14,6 +14,7 @@ class User:
     last_name: str
     first_name: str
     user_type: str
+    rfid_uid: str | None         # ← RFID UID field
     created_at: datetime.datetime
 
 
@@ -34,6 +35,7 @@ class UserDAO:
                 LastName,
                 FirstName,
                 UserType,
+                RfidUID,
                 CreatedAt
             FROM Users
             WHERE UserType='ADMIN'
@@ -53,12 +55,33 @@ class UserDAO:
                 LastName,
                 FirstName,
                 UserType,
+                RfidUID,
                 CreatedAt
             FROM Users
             WHERE UserID=?
         """
         cur = DatabaseManager.access_connection().cursor()
         cur.execute(sql, (uid,))
+        row = cur.fetchone()
+        return User(*row) if row else None
+
+    @classmethod
+    def get_by_rfid_uid(cls, rfid_uid: str) -> User | None:
+        sql = """
+            SELECT
+                UserID,
+                CompanyID,
+                SupervisorID,
+                LastName,
+                FirstName,
+                UserType,
+                RfidUID,
+                CreatedAt
+            FROM Users
+            WHERE RfidUID=?
+        """
+        cur = DatabaseManager.access_connection().cursor()
+        cur.execute(sql, (rfid_uid,))
         row = cur.fetchone()
         return User(*row) if row else None
 
@@ -78,17 +101,50 @@ class EmployeeDAO:
                 LastName,
                 FirstName,
                 UserType,
+                RfidUID,
                 CreatedAt
             FROM Users
-            ORDER BY UserID
+           ORDER BY UserID
         """
         cur = DatabaseManager.access_connection().cursor()
-        return [User(*row) for row in cur.execute(sql)]
+        return [
+            User(
+                r.UserID, r.CompanyID, r.SupervisorID,
+                r.LastName, r.FirstName, r.UserType, r.RfidUID, r.CreatedAt
+            )
+            for r in cur.execute(sql)
+        ]
 
     @classmethod
     def fetch_by_id(cls, uid: int) -> User | None:
+        sql = """
+            SELECT
+                UserID,
+                CompanyID,
+                SupervisorID,
+                LastName,
+                FirstName,
+                UserType,
+                RfidUID,
+                CreatedAt
+            FROM Users
+            WHERE UserID=?
         """
-        Fetch a single employee record by UserID.
+        cur = DatabaseManager.access_connection().cursor()
+        cur.execute(sql, (uid,))
+        r = cur.fetchone()
+        return (
+            User(
+                r.UserID, r.CompanyID, r.SupervisorID,
+                r.LastName, r.FirstName, r.UserType, r.RfidUID, r.CreatedAt
+            )
+            if r else None
+        )
+
+    @classmethod
+    def fetch_by_supervisor(cls, supervisor_id: int) -> list[User]:
+        """
+        Return all Users whose SupervisorID = supervisor_id.
         """
         sql = """
             SELECT
@@ -98,21 +154,23 @@ class EmployeeDAO:
                 LastName,
                 FirstName,
                 UserType,
+                RfidUID,
                 CreatedAt
             FROM Users
-            WHERE UserID=?
+            WHERE SupervisorID = ?
+            ORDER BY UserID
         """
         cur = DatabaseManager.access_connection().cursor()
-        cur.execute(sql, (uid,))
-        row = cur.fetchone()
-        return User(*row) if row else None
+        cur.execute(sql, (supervisor_id,))
+        return [User(*r) for r in cur.fetchall()]
 
     @classmethod
     def insert(cls,
                last: str,
                first: str,
                utype: str,
-               supervisor_id: int | None
+               supervisor_id: int | None,
+               rfid_uid: str | None = None
     ) -> None:
         sql = """
             INSERT INTO Users (
@@ -121,8 +179,9 @@ class EmployeeDAO:
                 LastName,
                 FirstName,
                 UserType,
+                RfidUID,
                 CreatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         now = datetime.datetime.now()
         cur = DatabaseManager.access_connection().cursor()
@@ -132,6 +191,7 @@ class EmployeeDAO:
             last,
             first,
             utype,
+            rfid_uid,
             now
         ))
 
@@ -142,7 +202,8 @@ class EmployeeDAO:
                 SupervisorID=?,
                 LastName=?,
                 FirstName=?,
-                UserType=?
+                UserType=?,
+                RfidUID=?
             WHERE UserID=?
         """
         cur = DatabaseManager.access_connection().cursor()
@@ -151,8 +212,20 @@ class EmployeeDAO:
             emp.last_name,
             emp.first_name,
             emp.user_type,
+            emp.rfid_uid,
             emp.user_id
         ))
+
+    @classmethod
+    def update_rfid_uid(cls, user_id: int, rfid_uid: str | None) -> None:
+        """Update only the RFID UID for a specific user."""
+        sql = """
+            UPDATE Users SET
+                RfidUID=?
+            WHERE UserID=?
+        """
+        cur = DatabaseManager.access_connection().cursor()
+        cur.execute(sql, (rfid_uid, user_id))
 
     @classmethod
     def delete(cls, uid: int) -> None:
@@ -199,6 +272,30 @@ class InventoryDAO:
         """
         cur = DatabaseManager.access_connection().cursor()
         return [Item(*row) for row in cur.execute(sql)]
+    
+    @classmethod
+    def fetch_by_supervisor(cls, supervisor_id: int) -> list[User]:
+        """
+        Fetch all users who report to a specific supervisor.
+        """
+        sql = """
+            SELECT
+                UserID,
+                CompanyID,
+                SupervisorID,
+                LastName,
+                FirstName,
+                UserType,
+                RfidUID,
+                CreatedAt
+            FROM Users
+            WHERE SupervisorID = ?
+            ORDER BY UserID
+        """
+        cur = DatabaseManager.access_connection().cursor()
+        cur.execute(sql, (supervisor_id,))
+        return [User(*row) for row in cur.fetchall()]
+
 
     @classmethod
     def fetch_by_id(cls, item_id: str) -> Item | None:
@@ -292,10 +389,18 @@ class InventoryDAO:
         ))
 
     @classmethod
-    def delete(cls, item_id: str) -> None:
-        sql = "DELETE FROM Items WHERE ItemID = ?"
-        cur = DatabaseManager.access_connection().cursor()
-        cur.execute(sql, (item_id,))
+    def delete(cls, item_id: str):
+        db = DatabaseManager.access_connection()
+        cur = db.cursor()
+
+        # Step 1: delete related safety requirements
+        cur.execute("DELETE FROM ItemSafetyRequirements WHERE ItemID = ?", (item_id,))
+
+        # Step 2: delete the item itself from Items table
+        cur.execute("DELETE FROM Items WHERE ItemID = ?", (item_id,))
+
+
+
 
 # ——— 模型定义 —————————————————————————————————————————————————————————
 @dataclass
@@ -414,43 +519,6 @@ class SubCategoryDAO:
         cur = DatabaseManager.access_connection().cursor()
         cur.execute(sql, (code,))
 
-
-# ——— ParameterDAO ————————————————————————————————————————————————————
-# class ParameterDAO:
-#     @classmethod
-#     def fetch_by_subcategory(cls, sub_code: str) -> list[Parameter]:
-#         sql = """
-#             SELECT
-#                 [SubCategoryCode],
-#                 [ParamPos]       AS Position,
-#                 [ParameterName] AS Name
-#             FROM [Parameters]
-#             WHERE [SubCategoryCode]=?
-#             ORDER BY [ParamPos]
-#         """
-#         cur = DatabaseManager.access_connection().cursor()
-#         return [
-#             Parameter(r.SubCategoryCode, r.Position, r.Name)
-#             for r in cur.execute(sql, (sub_code,))
-#         ]
-    
-#     @classmethod
-#     def insert(cls, sub_code: str, pos: int, name: str) -> None:
-#         sql = "INSERT INTO [Parameters] ([SubCategoryCode],[ParamPos],[ParameterName]) VALUES (?,?,?)"
-#         cur = DatabaseManager.access_connection().cursor()
-#         cur.execute(sql, (sub_code, pos, name))
-
-#     @classmethod
-#     def update(cls, sub_code: str, pos: int, name: str) -> None:
-#         sql = "UPDATE [Parameters] SET [ParameterName]=? WHERE [SubCategoryCode]=? AND [ParamPos]=?"
-#         cur = DatabaseManager.access_connection().cursor()
-#         cur.execute(sql, (name, sub_code, pos))
-
-#     @classmethod
-#     def delete(cls, sub_code: str, pos: int) -> None:
-#         sql = "DELETE FROM [Parameters] WHERE [SubCategoryCode]=? AND [ParamPos]=?"
-#         cur = DatabaseManager.access_connection().cursor()
-#         cur.execute(sql, (sub_code, pos))
 
 class ParameterDAO:
     @classmethod
@@ -693,8 +761,8 @@ class SafetyDAO:
         """
         sql = """
         SELECT
-            UserID, CompanyID, LastName,
-            FirstName, UserType, CreatedAt
+            UserID, CompanyID, SupervisorID, LastName,
+            FirstName, UserType, RfidUID, CreatedAt
         FROM Users
         WHERE SupervisorID = ?
         """
@@ -716,18 +784,61 @@ class SafetyDAO:
 
     @classmethod
     def delete_type(cls, permission_id: int) -> None:
+        db = DatabaseManager.access_connection()
+        cur = db.cursor()
+        try:
+            # db.begin()
+            
+            # 1) Delete all user-permit assignments
+            cur.execute(
+                "DELETE FROM EmployeeSafetyPermissions WHERE SafetyPermissionID = ?",
+                (permission_id,)
+            )
+
+            # 2) Delete all item-requirements
+            from data.access_dao import ItemSafetyRequirementDAO
+            ItemSafetyRequirementDAO.delete_by_permission(permission_id)
+
+            # 3) Delete the permission type itself
+            cur.execute(
+                "DELETE FROM SafetyPermissions WHERE SafetyPermissionID = ?",
+                (permission_id,)
+            )
+
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise e
+        
+    @classmethod    
+    def update_permit(
+        cls,
+        employee_id: int,
+        safety_permission_id: int,
+        issue_date: datetime.datetime,
+        new_expire_date: datetime.datetime,
+        issuer_employee_id: int
+    ) -> None:
+        """
+        Update an existing permit’s expiration and record who re-issued it.
+        """
+        sql = """
+        UPDATE EmployeeSafetyPermissions
+           SET ExpireDate       = ?,
+               IssuerEmployeeID = ?
+         WHERE EmployeeID         = ?
+           AND SafetyPermissionID = ?
+           AND IssueDate          = ?
+        """
         cur = DatabaseManager.access_connection().cursor()
-        # 1) Delete all user-permit assignments first
-        cur.execute(
-            "DELETE FROM EmployeeSafetyPermissions WHERE SafetyPermissionID = ?",
-            (permission_id,)
-        )
-        # 2) Delete all item-requirement entries using this permit
-        from data.access_dao import ItemSafetyRequirementDAO
-        ItemSafetyRequirementDAO.delete_by_permission(permission_id)
-        # 3) Now it's safe to delete the permit itself
-        sql = "DELETE FROM SafetyPermissions WHERE SafetyPermissionID = ?"
-        cur.execute(sql, (permission_id,))
+        cur.execute(sql, (
+            new_expire_date,
+            issuer_employee_id,
+            employee_id,
+            safety_permission_id,
+            issue_date
+        ))
+
 
 @dataclass
 class ItemSafetyRequirement:
